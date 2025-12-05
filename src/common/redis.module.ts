@@ -20,4 +20,3 @@ const redisFactory = () => {
   exports: [REDIS_CLIENT, CacheService],
 })
 export class RedisModule {}
-

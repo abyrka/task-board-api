@@ -1,4 +1,8 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { Board, BoardDocument } from './schemas/board.schema';
@@ -51,7 +55,9 @@ export class BoardsService {
 
     // if owner is being changed, validate new owner exists
     if (updateBoardDto.ownerId) {
-      const newOwner = await this.userModel.findById(updateBoardDto.ownerId).exec();
+      const newOwner = await this.userModel
+        .findById(updateBoardDto.ownerId)
+        .exec();
       if (!newOwner) throw new NotFoundException('New owner user not found');
     }
 
@@ -76,7 +82,9 @@ export class BoardsService {
     if (!board) throw new NotFoundException('Board not found');
 
     // check if tasks exist for this board
-    const taskCount = await this.taskModel.countDocuments({ boardId: id }).exec();
+    const taskCount = await this.taskModel
+      .countDocuments({ boardId: id })
+      .exec();
     if (taskCount > 0) {
       throw new BadRequestException(
         `Cannot delete board with ${taskCount} task(s). Delete all tasks first.`,

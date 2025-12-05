@@ -10,10 +10,12 @@ import { HistoryModule } from './history/history.module';
 
 @Module({
   imports: [
-    MongooseModule.forRoot(process.env.MONGODB_URI || 'mongodb://localhost:27017/taskboard', {
-      // optional
-      dbName: process.env.MONGODB_DB || 'taskboard',
-    }),
+    MongooseModule.forRoot(
+      process.env.MONGODB_URI || 'mongodb://localhost:27017/taskboard',
+      {
+        dbName: process.env.MONGODB_DB || 'taskboard',
+      },
+    ),
     UsersModule,
     BoardsModule,
     TasksModule,

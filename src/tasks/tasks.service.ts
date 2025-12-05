@@ -103,7 +103,10 @@ export class TasksService {
     const newBoardId = updateTaskDto['boardId']
       ? String(updateTaskDto['boardId'])
       : oldBoardId;
-    const keysToInvalidate = [`board:${oldBoardId}:tasks`, `task:${id}:comments`];
+    const keysToInvalidate = [
+      `board:${oldBoardId}:tasks`,
+      `task:${id}:comments`,
+    ];
     if (newBoardId !== oldBoardId) {
       keysToInvalidate.push(`board:${newBoardId}:tasks`);
     }
@@ -117,7 +120,10 @@ export class TasksService {
     if (!task) return null;
     const boardId = String(task.boardId);
     const removed = await this.taskModel.findByIdAndDelete(id).exec();
-    await this.cacheService.del(`board:${boardId}:tasks`, `task:${id}:comments`);
+    await this.cacheService.del(
+      `board:${boardId}:tasks`,
+      `task:${id}:comments`,
+    );
     return removed;
   }
 }

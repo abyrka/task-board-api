@@ -24,12 +24,7 @@ export class CacheService {
    */
   async set<T>(key: string, value: T, ttlSeconds = 60): Promise<void> {
     try {
-      await this.redisClient.set(
-        key,
-        JSON.stringify(value),
-        'EX',
-        ttlSeconds,
-      );
+      await this.redisClient.set(key, JSON.stringify(value), 'EX', ttlSeconds);
     } catch (e) {
       // ignore cache errors
     }

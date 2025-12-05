@@ -22,7 +22,7 @@ describe('Integration (e2e)', () => {
     process.env.MONGODB_DB = dbName;
 
     // use require here to avoid dynamic import/runtime ESM issues in jest environment
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
+
     const { AppModule } = require('../../src/app.module');
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -95,7 +95,10 @@ describe('Integration (e2e)', () => {
     // check history entries exist for this task
     // convert taskId to ObjectId for query (stored as ObjectId in DB)
     const { ObjectId } = require('mongoose').Types;
-    const logs = await historyModel.find({ taskId: new ObjectId(taskId) }).lean().exec();
+    const logs = await historyModel
+      .find({ taskId: new ObjectId(taskId) })
+      .lean()
+      .exec();
     expect(logs.length).toBeGreaterThanOrEqual(1);
     const statusLog = logs.find((l) => l.field === 'status');
     expect(statusLog).toBeDefined();
@@ -104,7 +107,9 @@ describe('Integration (e2e)', () => {
     await request(app.getHttpServer()).delete(`/tasks/${taskId}`).expect(200);
 
     // cache for board tasks should be invalidated
-    const afterDeleteCached = await cacheService.get<any[]>(`board:${boardId}:tasks`);
+    const afterDeleteCached = await cacheService.get<any[]>(
+      `board:${boardId}:tasks`,
+    );
     expect(afterDeleteCached).toBeNull();
 
     // now delete board should succeed
