@@ -15,6 +15,9 @@ COPY . .
 # Build the NestJS app
 RUN npm run build
 
+# Verify build output
+RUN ls -la dist/
+
 # Stage 2: Runtime
 FROM node:20-alpine
 
