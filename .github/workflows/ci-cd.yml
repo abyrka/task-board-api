@@ -1,0 +1,66 @@
+name: CI / CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ '**' ]
+
+jobs:
+  test:
+    name: Install, Lint, Build & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint --if-present
+
+      - name: Build
+        run: npm run build --if-present
+
+      - name: Run tests (unit + e2e)
+        run: npm test -- --runInBand
+
+  docker-push:
+    name: Build and push Docker image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' && secrets.DOCKERHUB_USERNAME && secrets.DOCKERHUB_TOKEN
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v4
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ secrets.DOCKERHUB_USERNAME }}/task-board-api:latest
+            ${{ secrets.DOCKERHUB_USERNAME }}/task-board-api:${{ github.sha }}
+
+      - name: Image details
+        run: |
+          echo "Pushed image: ${{ secrets.DOCKERHUB_USERNAME }}/task-board-api:latest"
+
+# Optional deployment steps (examples):
+# - Deploy to Fly.io: set FLY_API_TOKEN secret and add a fly.toml to the repo,
+#   then add a job to run `flyctl deploy --image <image>` or `flyctl deploy --remote-only`.
+# - Deploy to a host that can pull from Docker Hub (many hosts support this).
