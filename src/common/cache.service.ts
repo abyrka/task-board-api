@@ -11,6 +11,9 @@ export class CacheService {
    */
   async get<T>(key: string): Promise<T | null> {
     try {
+      if (this.redisClient.status !== 'ready') {
+        return null;
+      }
       const cached = await this.redisClient.get(key);
       return cached ? JSON.parse(cached) : null;
     } catch (e) {
@@ -24,6 +27,9 @@ export class CacheService {
    */
   async set<T>(key: string, value: T, ttlSeconds = 60): Promise<void> {
     try {
+      if (this.redisClient.status !== 'ready') {
+        return;
+      }
       await this.redisClient.set(key, JSON.stringify(value), 'EX', ttlSeconds);
     } catch (e) {
       // ignore cache errors
@@ -35,6 +41,9 @@ export class CacheService {
    */
   async del(...keys: string[]): Promise<void> {
     try {
+      if (this.redisClient.status !== 'ready') {
+        return;
+      }
       if (keys.length > 0) {
         await this.redisClient.del(...keys);
       }
@@ -48,6 +57,9 @@ export class CacheService {
    */
   async flushAll(): Promise<void> {
     try {
+      if (this.redisClient.status !== 'ready') {
+        return;
+      }
       await this.redisClient.flushall();
     } catch (e) {
       // ignore cache errors

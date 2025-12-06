@@ -5,7 +5,23 @@ import { CacheService } from './cache.service';
 
 const redisFactory = () => {
   const url = process.env.REDIS_URL || 'redis://127.0.0.1:6379';
-  return new Redis(url);
+  const client = new Redis(url, {
+    maxRetriesPerRequest: 3,
+    enableReadyCheck: false,
+    lazyConnect: true,
+  });
+
+  // Suppress connection errors for optional Redis
+  client.on('error', (err) => {
+    console.warn('Redis connection error (running without cache):', err.message);
+  });
+
+  // Try to connect, but don't fail if it doesn't work
+  client.connect().catch(() => {
+    console.warn('Redis unavailable - running without cache');
+  });
+
+  return client;
 };
 
 @Global()
