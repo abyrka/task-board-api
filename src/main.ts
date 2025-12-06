@@ -7,11 +7,12 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   // Enable CORS so the React frontend can call the API
   // Allow the local frontend origins; add other origins as needed.
+  const allowedOrigins = process.env.FRONTEND_URL 
+    ? process.env.FRONTEND_URL.split(',')
+    : ['http://localhost:3002', 'http://localhost:3001'];
+  
   app.enableCors({
-    origin: [
-      process.env.FRONTEND_URL || 'http://localhost:3002',
-      'http://localhost:3001',
-    ],
+    origin: allowedOrigins,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
     allowedHeaders:
