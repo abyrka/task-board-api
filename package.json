@@ -68,7 +68,7 @@
     ],
     "rootDir": ".",
     "testMatch": [
-      "<rootDir>/test/**/*.spec.ts"
+      "<rootDir>/test/**/*(*.)@(spec|test).ts"
     ],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
