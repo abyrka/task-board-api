@@ -47,7 +47,7 @@ export class BoardsService {
         .exec();
       if (!newOwner) throw new NotFoundException('New owner user not found');
     }
-    
+
     return this.boardModel
       .findByIdAndUpdate(id, updateBoardDto, { new: true })
       .exec();

@@ -6,6 +6,7 @@ import { Model } from 'mongoose';
 import request from 'supertest';
 import { CacheService } from '../../src/shared/cache.service';
 import { TaskHistoryLog } from '../../src/modules/history/schemas/task-history-log.schema';
+import { TaskStatus } from '../../src/shared/constants/task-status.constants';
 
 describe('Integration (e2e)', () => {
   let app: INestApplication;
@@ -52,13 +53,6 @@ describe('Integration (e2e)', () => {
       .expect(201);
     const ownerId = ownerRes.body._id;
 
-    // create assignee
-    const assigneeRes = await request(app.getHttpServer())
-      .post('/users')
-      .send({ name: 'Assignee', email: `assignee-${Date.now()}@test.local` })
-      .expect(201);
-    const assigneeId = assigneeRes.body._id;
-
     // create board
     const boardRes = await request(app.getHttpServer())
       .post('/boards')
@@ -69,7 +63,7 @@ describe('Integration (e2e)', () => {
     // create task
     const taskRes = await request(app.getHttpServer())
       .post('/tasks')
-      .send({ boardId, title: 'T1', status: 'todo', assigneeId })
+      .send({ boardId, title: 'T1', status: TaskStatus.TODO })
       .expect(201);
     const taskId = taskRes.body._id;
 
@@ -92,7 +86,7 @@ describe('Integration (e2e)', () => {
     // update task status -> creates history
     const updatedRes = await request(app.getHttpServer())
       .patch(`/tasks/${taskId}`)
-      .send({ status: 'in-progress', changedByUserId: ownerId })
+      .send({ status: TaskStatus.IN_PROGRESS, changedByUserId: ownerId })
       .expect(200);
 
     // check history entries exist for this task
@@ -105,6 +99,8 @@ describe('Integration (e2e)', () => {
     expect(logs.length).toBeGreaterThanOrEqual(1);
     const statusLog = logs.find((l) => l.field === 'status');
     expect(statusLog).toBeDefined();
+    expect(statusLog?.oldValue).toBe(TaskStatus.TODO);
+    expect(statusLog?.newValue).toBe(TaskStatus.IN_PROGRESS);
 
     // delete task
     await request(app.getHttpServer()).delete(`/tasks/${taskId}`).expect(200);
@@ -281,33 +277,30 @@ describe('Integration (e2e)', () => {
         .send({
           boardId,
           title: 'Todo Task',
-          status: 'todo',
-          assigneeId: user1Id,
+          status: TaskStatus.TODO,
         })
         .expect(201);
-      expect(todoRes.body.status).toBe('todo');
+      expect(todoRes.body.status).toBe(TaskStatus.TODO);
 
       const inProgressRes = await request(app.getHttpServer())
         .post('/tasks')
         .send({
           boardId,
           title: 'In Progress Task',
-          status: 'in-progress',
-          assigneeId: user2Id,
+          status: TaskStatus.IN_PROGRESS,
         })
         .expect(201);
-      expect(inProgressRes.body.status).toBe('in-progress');
+      expect(inProgressRes.body.status).toBe(TaskStatus.IN_PROGRESS);
 
       const doneRes = await request(app.getHttpServer())
         .post('/tasks')
         .send({
           boardId,
           title: 'Done Task',
-          status: 'done',
-          assigneeId: user1Id,
+          status: TaskStatus.DONE,
         })
         .expect(201);
-      expect(doneRes.body.status).toBe('done');
+      expect(doneRes.body.status).toBe(TaskStatus.DONE);
     });
 
     it('should fail to create task with invalid status', async () => {
@@ -346,15 +339,14 @@ describe('Integration (e2e)', () => {
         .send({
           boardId,
           title: 'History Test',
-          status: 'todo',
-          assigneeId: user1Id,
+          status: TaskStatus.TODO,
         })
         .expect(201);
       const taskId = createRes.body._id;
 
       await request(app.getHttpServer())
         .patch(`/tasks/${taskId}`)
-        .send({ status: 'done', changedByUserId: user1Id })
+        .send({ status: TaskStatus.DONE, changedByUserId: user1Id })
         .expect(200);
 
       const { ObjectId } = require('mongoose').Types;
@@ -366,14 +358,18 @@ describe('Integration (e2e)', () => {
 
       const statusLog = logs.find((l) => l.field === 'status');
       expect(statusLog).toBeDefined();
-      expect(statusLog?.oldValue).toBe('todo');
-      expect(statusLog?.newValue).toBe('done');
+      expect(statusLog?.oldValue).toBe(TaskStatus.TODO);
+      expect(statusLog?.newValue).toBe(TaskStatus.DONE);
     });
 
     it('should invalidate task cache on update', async () => {
       const createRes = await request(app.getHttpServer())
         .post('/tasks')
-        .send({ boardId, title: 'Cache Invalidation Test', status: 'todo' })
+        .send({
+          boardId,
+          title: 'Cache Invalidation Test',
+          status: TaskStatus.TODO,
+        })
         .expect(201);
       const taskId = createRes.body._id;
 
@@ -387,7 +383,7 @@ describe('Integration (e2e)', () => {
 
       await request(app.getHttpServer())
         .patch(`/tasks/${taskId}`)
-        .send({ status: 'done' })
+        .send({ status: TaskStatus.DONE })
         .expect(200);
 
       const afterCache = await cacheService.get(cacheKey);
@@ -397,7 +393,7 @@ describe('Integration (e2e)', () => {
     it('should delete task and invalidate cache', async () => {
       const createRes = await request(app.getHttpServer())
         .post('/tasks')
-        .send({ boardId, title: 'To Delete', status: 'todo' })
+        .send({ boardId, title: 'To Delete', status: TaskStatus.TODO })
         .expect(201);
       const taskId = createRes.body._id;
 
@@ -432,7 +428,7 @@ describe('Integration (e2e)', () => {
         .send({
           boardId: boardRes.body._id,
           title: 'Blocking Task',
-          status: 'todo',
+          status: TaskStatus.TODO,
         })
         .expect(201);
 
@@ -463,7 +459,7 @@ describe('Integration (e2e)', () => {
         .send({
           boardId: boardRes.body._id,
           title: 'Comment Task',
-          status: 'todo',
+          status: TaskStatus.TODO,
         })
         .expect(201);
       taskId = taskRes.body._id;
@@ -581,8 +577,7 @@ describe('Integration (e2e)', () => {
         .send({
           boardId,
           title: 'History Task',
-          status: 'todo',
-          assigneeId: userId,
+          status: TaskStatus.TODO,
         })
         .expect(201);
       taskId = taskRes.body._id;
@@ -591,7 +586,7 @@ describe('Integration (e2e)', () => {
     it('should log status change', async () => {
       await request(app.getHttpServer())
         .patch(`/tasks/${taskId}`)
-        .send({ status: 'in-progress', changedByUserId: userId })
+        .send({ status: TaskStatus.IN_PROGRESS, changedByUserId: userId })
         .expect(200);
 
       const { ObjectId } = require('mongoose').Types;
@@ -602,8 +597,8 @@ describe('Integration (e2e)', () => {
       expect(logs.length).toBeGreaterThanOrEqual(1);
 
       const latestLog = logs[logs.length - 1];
-      expect(latestLog.oldValue).toBe('todo');
-      expect(latestLog.newValue).toBe('in-progress');
+      expect(latestLog.oldValue).toBe(TaskStatus.TODO);
+      expect(latestLog.newValue).toBe(TaskStatus.IN_PROGRESS);
     });
 
     it('should log title change', async () => {
@@ -623,32 +618,10 @@ describe('Integration (e2e)', () => {
       expect(latestLog.newValue).toBe('Updated Title');
     });
 
-    it('should log assignee change', async () => {
-      const newAssigneeRes = await request(app.getHttpServer())
-        .post('/users')
-        .send({
-          name: 'New Assignee',
-          email: `new-assignee-${Date.now()}@test.com`,
-        })
-        .expect(201);
-
-      await request(app.getHttpServer())
-        .patch(`/tasks/${taskId}`)
-        .send({ assigneeId: newAssigneeRes.body._id, changedByUserId: userId })
-        .expect(200);
-
-      const { ObjectId } = require('mongoose').Types;
-      const logs = await historyModel
-        .find({ taskId: new ObjectId(taskId), field: 'assigneeId' })
-        .lean()
-        .exec();
-      expect(logs.length).toBeGreaterThanOrEqual(1);
-    });
-
     it('should record changedByUserId in history', async () => {
       await request(app.getHttpServer())
         .patch(`/tasks/${taskId}`)
-        .send({ status: 'done', changedByUserId: userId })
+        .send({ status: TaskStatus.DONE, changedByUserId: userId })
         .expect(200);
 
       const { ObjectId } = require('mongoose').Types;
@@ -676,33 +649,6 @@ describe('Integration (e2e)', () => {
           title: 'Invalid Board Task',
         })
         .expect(404);
-    });
-
-    it('should create task even with non-existent assignee (no validation enforced)', async () => {
-      const userRes = await request(app.getHttpServer())
-        .post('/users')
-        .send({
-          name: 'Board Owner',
-          email: `validation-${Date.now()}@test.com`,
-        })
-        .expect(201);
-
-      const boardRes = await request(app.getHttpServer())
-        .post('/boards')
-        .send({ name: 'Validation Board', ownerId: userRes.body._id })
-        .expect(201);
-
-      const res = await request(app.getHttpServer())
-        .post('/tasks')
-        .send({
-          boardId: boardRes.body._id,
-          title: 'No Assignee Validation',
-          assigneeId: '507f1f77bcf86cd799439011',
-        })
-        .expect(201);
-
-      expect(res.body).toHaveProperty('_id');
-      expect(res.body.title).toBe('No Assignee Validation');
     });
 
     it('should fail to create comment with non-existent task', async () => {
@@ -762,8 +708,7 @@ describe('Integration (e2e)', () => {
         .send({
           boardId: board.body._id,
           title: 'Setup Project',
-          status: 'todo',
-          assigneeId: dev1.body._id,
+          status: TaskStatus.TODO,
         })
         .expect(201);
 
@@ -772,14 +717,16 @@ describe('Integration (e2e)', () => {
         .send({
           boardId: board.body._id,
           title: 'Write Tests',
-          status: 'todo',
-          assigneeId: dev2.body._id,
+          status: TaskStatus.TODO,
         })
         .expect(201);
 
       await request(app.getHttpServer())
         .patch(`/tasks/${task1.body._id}`)
-        .send({ status: 'in-progress', changedByUserId: dev1.body._id })
+        .send({
+          status: TaskStatus.IN_PROGRESS,
+          changedByUserId: dev1.body._id,
+        })
         .expect(200);
 
       await request(app.getHttpServer())
@@ -793,7 +740,7 @@ describe('Integration (e2e)', () => {
 
       await request(app.getHttpServer())
         .patch(`/tasks/${task1.body._id}`)
-        .send({ status: 'done', changedByUserId: dev1.body._id })
+        .send({ status: TaskStatus.DONE, changedByUserId: dev1.body._id })
         .expect(200);
 
       const tasks = await request(app.getHttpServer())

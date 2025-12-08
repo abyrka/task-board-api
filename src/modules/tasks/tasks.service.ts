@@ -59,7 +59,7 @@ export class TasksService {
 
     const mutable = updateTaskDto as any;
     const historyEntries: Partial<TaskHistoryLog>[] = [];
-    const allowedFields = ['title', 'status', 'assigneeId', 'boardId'];
+    const allowedFields = ['title', 'status', 'boardId'];
     for (const key of allowedFields) {
       if (key === 'changedByUserId') continue;
       if (!(key in mutable)) continue;

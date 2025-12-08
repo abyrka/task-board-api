@@ -9,7 +9,12 @@ export class Board {
   @Prop({ required: true })
   name: string;
 
-  @Prop({ type: Types.ObjectId, ref: MODEL_NAMES.USER, required: true, index: true })
+  @Prop({
+    type: Types.ObjectId,
+    ref: MODEL_NAMES.USER,
+    required: true,
+    index: true,
+  })
   ownerId: Types.ObjectId;
 }
 

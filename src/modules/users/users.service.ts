@@ -71,15 +71,6 @@ export class UsersService {
       );
     }
 
-    const assignedTaskCount = await this.taskModel
-      .countDocuments({ assigneeId: id })
-      .exec();
-    if (assignedTaskCount > 0) {
-      throw new BadRequestException(
-        `Cannot delete user with ${assignedTaskCount} assigned task(s).`,
-      );
-    }
-
     return this.userModel.findByIdAndDelete(id).exec();
   }
 }

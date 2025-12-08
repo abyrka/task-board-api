@@ -205,8 +205,7 @@ Content-Type: application/json
 {
   "boardId": "64a1b2c3d4e5f6g7h8i9j0k1",
   "title": "Implement login",
-  "status": "todo",
-  "assigneeId": "64a1b2c3d4e5f6g7h8i9j0k2"
+  "status": "todo"
 }
 
 # List all tasks
@@ -224,7 +223,6 @@ Content-Type: application/json
 
 {
   "status": "in-progress",
-  "assigneeId": "64a1b2c3d4e5f6g7h8i9j0k3",
   "changedByUserId": "64a1b2c3d4e5f6g7h8i9j0k4"
 }
 
@@ -298,7 +296,6 @@ DELETE /comments/:commentId
   "boardId": "ObjectId (ref: Board)",
   "title": "string",
   "status": "enum: TaskStatus.TODO | TaskStatus.IN_PROGRESS | TaskStatus.DONE",
-  "assigneeId": "ObjectId (ref: User, optional)",
   "createdAt": "Date",
   "updatedAt": "Date"
 }
@@ -321,7 +318,7 @@ DELETE /comments/:commentId
 {
   "_id": "ObjectId",
   "taskId": "ObjectId (ref: Task)",
-  "field": "string (e.g. 'status', 'title', 'assigneeId')",
+  "field": "string (e.g. 'status', 'title', 'boardId')",
   "oldValue": "string (optional)",
   "newValue": "string (optional)",
   "changedByUserId": "ObjectId (ref: User, optional)",
@@ -430,7 +427,7 @@ curl -X POST http://localhost:3000/boards \
 ```bash
 curl -X POST http://localhost:3000/tasks \
   -H "Content-Type: application/json" \
-  -d '{"boardId":"<board_id>","title":"Design UI","status":"todo","assigneeId":"<user_alice_id>"}'
+  -d '{"boardId":"<board_id>","title":"Design UI","status":"todo"}'
 ```
 
 ### 5. Update task status (creates history)
