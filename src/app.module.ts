@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { MongooseModule } from '@nestjs/mongoose';
-import { UsersModule } from './users/users.module';
-import { BoardsModule } from './boards/boards.module';
-import { TasksModule } from './tasks/tasks.module';
-import { CommentsModule } from './comments/comments.module';
-import { HistoryModule } from './history/history.module';
+import { UsersModule } from './modules/users/users.module';
+import { BoardsModule } from './modules/boards/boards.module';
+import { TasksModule } from './modules/tasks/tasks.module';
+import { CommentsModule } from './modules/comments/comments.module';
+import { HistoryModule } from './modules/history/history.module';
 
 @Module({
   imports: [
@@ -19,7 +19,7 @@ import { HistoryModule } from './history/history.module';
     TasksModule,
     CommentsModule,
     HistoryModule,
-    require('./common/redis.module').RedisModule,
+    require('./shared/redis.module').RedisModule,
   ],
   controllers: [],
   providers: [],

@@ -8,68 +8,128 @@ A Trello-like Task Board API built with NestJS, MongoDB, and Redis. Features ful
 - **Board Management** — Create boards with owner and member management. Prevents deletion if tasks exist.
 - **Task Management** — Full CRUD with status tracking (todo, in-progress, done), optional assignee assignment.
 - **Task History** — Automatic tracking of all task field changes (title, status, assignee, board).
-- **Comments** — Add, read, update, delete comments on tasks with automatic history.
+- **Comments** — Add, read, update, delete comments on tasks.
 - **Data Integrity** — Database-level and server-side validation:
   - Cannot delete a board while tasks exist.
-  - Cannot delete a user who owns boards or has assigned tasks.
+  - Cannot delete a user who owns boards.
   - Automatic cleanup of comments and history when task is deleted.
-- **Redis Caching** — Caches board tasks and task comments (60s TTL) with automatic invalidation on mutations.
+- **Redis Caching** — Caches board tasks, board list, and task comments (60s TTL) with automatic invalidation on mutations.
 - **Normalized Schema** — Proper Mongoose schemas with indexes and ObjectId references.
+- **TypeScript Enums** — TaskStatus enum for type safety.
+- **Centralized Constants** — Model names centralized in constants for consistency.
 
 ## 🚀 Prerequisites
 
-- **Node.js** >= 16
-- **MongoDB** >= 4.4 (local or cloud)
-- **Redis** >= 6 (local or cloud)
+- **Node.js** >= 20
+- **MongoDB** >= 4.4 (local or cloud - MongoDB Atlas free tier supported)
+- **Redis** >= 6 (local or cloud - Upstash free tier supported)
 
 ## 📦 Installation & Setup
 
 ### 1. Clone and install dependencies
 
 ```bash
-cd 'C:\Work\Pet\Task Board\task-board-api'
 npm install
 ```
 
-### 2. Start MongoDB (local)
+### 2. Environment Configuration
 
-**Option A: Using Docker**
-```bash
-docker run -p 27017:27017 --name taskboard-mongo -d mongo:latest
+Create a `.env` file or set environment variables:
+
+```env
+# MongoDB (required)
+MONGODB_URI=mongodb://localhost:27017/taskboard
+MONGODB_DB=taskboard
+
+# Redis (optional - gracefully degrades if unavailable)
+REDIS_URL=redis://127.0.0.1:6379
+
+# Frontend CORS (optional - comma-separated URLs)
+FRONTEND_URL=http://localhost:3002,http://localhost:3001
+
+# Port (optional)
+PORT=3001
 ```
 
-**Option B: Using installed MongoDB**
+**Cloud Deployment Example (Render.com + MongoDB Atlas + Upstash Redis):**
+```env
+MONGODB_URI=mongodb+srv://<user>:<password>@cluster.mongodb.net/
+MONGODB_DB=taskboard
+REDIS_URL=rediss://default:<password>@<host>.upstash.io:6379
+FRONTEND_URL=https://your-frontend.onrender.com
+PORT=3001
+```
+
+### 3. Local Development Setup
+
+**Option A: Using Docker Compose (Recommended)**
 ```bash
+docker-compose up -d
+npm run start:dev
+```
+
+**Option B: Manual Setup**
+
+Start MongoDB:
+```bash
+# Using Docker
+docker run -p 27017:27017 --name taskboard-mongo -d mongo:latest
+
+# Or using installed MongoDB
 mongod
 ```
 
-### 3. Start Redis (local)
-
-**Option A: Using Docker**
+Start Redis:
 ```bash
+# Using Docker
 docker run -p 6379:6379 --name taskboard-redis -d redis:7
-```
 
-**Option B: Using installed Redis**
-```bash
+# Or using installed Redis
 redis-server
 ```
 
-### 4. Run the application
-
+Run the application:
 ```bash
 npm run start:dev
 ```
 
-The API will be available at `http://localhost:3000`
+The API will be available at `http://localhost:3001`
 
-### Environment Variables
+## 🏗️ Project Structure
 
-Create a `.env` file (optional, these are defaults):
+```
+src/
+├── modules/                # Domain modules
+│   ├── users/              # User CRUD module
+│   │   ├── users.service.ts
+│   │   ├── users.controller.ts
+│   │   ├── users.module.ts
+│   │   ├── dto/
+│   │   │   ├── create-user.dto.ts
+│   │   │   └── update-user.dto.ts
+│   │   └── schemas/
+│   │       └── user.schema.ts
+│   ├── boards/             # Board CRUD module
+│   ├── tasks/              # Task CRUD + history module
+│   │   ├── constants/
+│   │   │   └── task-status.constants.ts
+│   │   └── ...
+│   ├── comments/           # Comment CRUD module
+│   └── history/            # Task history logging
+├── shared/                 # Shared utilities
+│   ├── cache.service.ts    # Redis cache wrapper
+│   ├── redis.module.ts     # Redis provider (global)
+│   ├── redis.constants.ts  # Redis connection token
+│   └── constants/
+│       ├── model-names.constants.ts    # Centralized model names
+│       └── task-status.constants.ts    # Task status enum
+├── app.module.ts           # Main app module
+└── main.ts                 # Application entry point
 
-```env
-MONGODB_URI=mongodb://localhost:27017/taskboard
-REDIS_URL=redis://127.0.0.1:6379
+test/
+├── app.e2e-spec.ts        # Basic app initialization test
+└── e2e/
+    └── integration.e2e-spec.ts  # Comprehensive integration tests (35 tests)
 ```
 
 ## 📚 API Endpoints
@@ -237,7 +297,7 @@ DELETE /comments/:commentId
   "_id": "ObjectId",
   "boardId": "ObjectId (ref: Board)",
   "title": "string",
-  "status": "enum: 'todo' | 'in-progress' | 'done'",
+  "status": "enum: TaskStatus.TODO | TaskStatus.IN_PROGRESS | TaskStatus.DONE",
   "assigneeId": "ObjectId (ref: User, optional)",
   "createdAt": "Date",
   "updatedAt": "Date"
@@ -274,55 +334,74 @@ DELETE /comments/:commentId
 
 | Rule | Enforcement |
 |------|-------------|
-| Cannot delete board with tasks | Server-side + Database-level (pre-hook) |
-| Cannot delete user who owns boards | Server-side + Database-level (pre-hook) |
-| Cannot delete user with assigned tasks | Server-side + Database-level (pre-hook) |
-| Email must be unique | Database index + Server-side validation |
-| Task history auto-created on update | Server-side (service layer) |
-| Comments auto-deleted when task deleted | Database-level (cascade pre-hook) |
+| Cannot delete board with tasks | Database-level (pre-hook) |
+| Cannot delete user who owns boards | Database-level (pre-hook) |
+| Email must be unique | Database index + DTO validation |
+| Task status must be valid enum | DTO validation (@IsEnum) |
+| MongoId fields validated | DTO validation (@IsMongoId) |
+| Task history auto-created on update | Service layer |
+| Comments/history auto-deleted on task delete | Database-level (cascade pre-hook) |
 
 ## ⚡ Caching Strategy
 
+- **All Boards**: Cached at `all_boards` (60s TTL)
+  - Invalidated on board create/update/delete
 - **Board Tasks**: Cached at `board:{boardId}:tasks` (60s TTL)
   - Invalidated on task create/update/delete
 - **Task Comments**: Cached at `task:{taskId}:comments` (60s TTL)
   - Invalidated on comment create/update/delete
 
-Cache is optional — if Redis is unavailable, the API falls back to direct database queries.
-
-## 🏗️ Project Structure
-
-```
-src/
-├── app.module.ts           # Main app module with all imports
-├── main.ts                 # Application entry point
-├── users/                  # User CRUD module
-│   ├── users.service.ts
-│   ├── users.controller.ts
-│   ├── users.module.ts
-│   ├── dto/
-│   │   ├── create-user.dto.ts
-│   │   └── update-user.dto.ts
-│   └── schemas/
-│       └── user.schema.ts
-├── boards/                 # Board CRUD module
-├── tasks/                  # Task CRUD + history module
-├── comments/               # Comment CRUD module
-├── history/                # Task history logging
-├── common/                 # Shared utilities
-│   ├── cache.service.ts    # Redis cache wrapper
-│   ├── redis.module.ts     # Redis provider
-│   └── redis.constants.ts  # Redis token constant
-```
+**Graceful Degradation**: If Redis is unavailable, the API automatically falls back to direct database queries without caching.
 
 ## 🧪 Testing
 
-Run the test suite:
+```bash
+# Run all tests
+npm test
+
+# Run e2e integration tests (35 test cases)
+npm run test:e2e
+
+# Test coverage
+npm run test:cov
+```
+
+**Test Coverage Includes:**
+- ✅ User CRUD operations (6 tests)
+- ✅ Board CRUD operations (5 tests)
+- ✅ Task CRUD and filtering (7 tests)
+- ✅ Comments CRUD and caching (5 tests)
+- ✅ Task history logging (4 tests)
+- ✅ Data integrity validations (4 tests)
+- ✅ Complete workflow integration (1 test)
+
+## 🐳 Docker Deployment
+
+Build and run with Docker:
 
 ```bash
-npm run test
-npm run test:e2e
+# Build image
+docker build -t task-board-api .
+
+# Run container
+docker run -p 3001:3001 \
+  -e MONGODB_URI=mongodb://host.docker.internal:27017/taskboard \
+  -e REDIS_URL=redis://host.docker.internal:6379 \
+  task-board-api
 ```
+
+**GitHub Actions CI/CD** is configured to:
+- Run linting and build checks
+- Build and push Docker images to Docker Hub on every push
+
+## 🌐 Cloud Deployment
+
+**Deployed on Render.com (Free Tier):**
+- API: Automatically deployed from main branch
+- MongoDB: MongoDB Atlas M0 Free Tier (512MB)
+- Redis: Upstash Redis Free Tier (10k commands/day)
+
+**Note**: Free tier spins down after 15 minutes of inactivity (cold start ~30s).
 
 ## 📝 Example Workflow
 
@@ -379,71 +458,42 @@ curl http://localhost:3000/comments?taskId=<task_id>
 - Run `npm install @nestjs/mapped-types --save`
 
 **"connect ECONNREFUSED 127.0.0.1:27017"**
-- Ensure MongoDB is running on port 27017 or update `MONGODB_URI`
+- Ensure MongoDB is running on port 27017 or update `MONGODB_URI` in environment variables
+- For Docker: `docker run -p 27017:27017 --name taskboard-mongo -d mongo:latest`
 
 **"connect ECONNREFUSED 127.0.0.1:6379"**
 - Ensure Redis is running on port 6379 or update `REDIS_URL`
 - Redis is optional; app will work without it (no caching)
+- For Docker: `docker run -p 6379:6379 --name taskboard-redis -d redis:7`
+
+**"Cannot determine a type for the Task.status field"**
+- Ensure `TaskStatus` enum is properly configured with `@Prop({ type: String, enum: TaskStatus })`
+
+## 🛠️ Tech Stack
+
+- **Framework**: NestJS 11.x
+- **Language**: TypeScript 5.x
+- **Database**: MongoDB with Mongoose ODM
+- **Caching**: Redis via ioredis
+- **Validation**: class-validator, class-transformer
+- **Testing**: Jest + Supertest
+- **Linting**: ESLint 9.x with TypeScript flat config
+- **CI/CD**: GitHub Actions
+- **Containerization**: Docker
 
 ## 📖 Additional Resources
 
 - [NestJS Documentation](https://docs.nestjs.com)
 - [Mongoose Documentation](https://mongoosejs.com)
 - [Redis Documentation](https://redis.io/documentation)
-- [ioredis Client](https://github.com/luin/ioredis)
+- [MongoDB Atlas](https://www.mongodb.com/cloud/atlas)
+- [Upstash Redis](https://upstash.com/)
+- [Render.com Deployment](https://render.com)
 
 ## 📄 License
 
-This project is unlicensed.
+This project is MIT licensed.
 
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+---
 
-## Description
-
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
-
-## Project setup
-
-```bash
-$ npm install
-```
-
-## Compile and run the project
-
-```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
-```
-
-## Run tests
-
-```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
-```
-
-## Deployment
-
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
-
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
-
-```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
-```
-
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+**Built with ❤️ using NestJS**
