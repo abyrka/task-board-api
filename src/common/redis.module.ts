@@ -12,7 +12,10 @@ const redisFactory = () => {
   });
 
   client.on('error', (err) => {
-    console.warn('Redis connection error (running without cache):', err.message);
+    console.warn(
+      'Redis connection error (running without cache):',
+      err.message,
+    );
   });
 
   client.connect().catch(() => {
