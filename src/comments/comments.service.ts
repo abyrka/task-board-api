@@ -21,7 +21,6 @@ export class CommentsService {
   ) {}
 
   async create(createDto: CreateCommentDto) {
-    // ensure task exists
     const task = await this.taskModel.findById(createDto.taskId).exec();
     if (!task) throw new NotFoundException('Task not found');
 

@@ -17,7 +17,6 @@ export class Board {
 
 export const BoardSchema = SchemaFactory.createForClass(Board);
 
-// Pre-hook to prevent deletion if tasks exist
 BoardSchema.pre('deleteOne', async function (next) {
   const boardId = this.getFilter()._id;
   if (boardId) {

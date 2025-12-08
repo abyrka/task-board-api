@@ -22,7 +22,6 @@ export class TasksService {
   ) {}
 
   async create(createTaskDto: CreateTaskDto) {
-    // validate board exists
     const board = await this.boardModel.findById(createTaskDto.boardId).exec();
     if (!board) {
       throw new NotFoundException('Board not found');
@@ -30,10 +29,7 @@ export class TasksService {
 
     const created = new this.taskModel(createTaskDto);
     const saved = await created.save();
-
-    // invalidate board tasks cache
     await this.cacheService.del(`board:${createTaskDto.boardId}:tasks`);
-
     return saved;
   }
 
@@ -61,17 +57,14 @@ export class TasksService {
     const task = await this.taskModel.findById(id).exec();
     if (!task) throw new NotFoundException('Task not found');
 
-    // compute diffs and create history entries
     const mutable = updateTaskDto as any;
     const historyEntries: Partial<TaskHistoryLog>[] = [];
     const allowedFields = ['title', 'status', 'assigneeId', 'boardId'];
-    // iterate allowed fields to avoid relying on enumerable keys on DTO instances
     for (const key of allowedFields) {
       if (key === 'changedByUserId') continue;
       if (!(key in mutable)) continue;
       const oldVal = (task as any)[key];
       const newVal = mutable[key];
-      // simple equality check
       if (
         (oldVal === undefined && newVal !== undefined) ||
         (oldVal !== undefined && String(oldVal) !== String(newVal))
@@ -86,19 +79,16 @@ export class TasksService {
       }
     }
 
-    // perform update
     const updated = await this.taskModel
       .findByIdAndUpdate(id, updateTaskDto, { new: true })
       .exec();
 
-    // persist history entries
     if (historyEntries.length) {
       await this.historyModel.insertMany(
         historyEntries.map((h) => ({ ...h, taskId: h.taskId })),
       );
     }
 
-    // invalidate caches: board tasks for old and new board, and task's comments if relevant
     const oldBoardId = String(task.boardId);
     const newBoardId = updateTaskDto['boardId']
       ? String(updateTaskDto['boardId'])

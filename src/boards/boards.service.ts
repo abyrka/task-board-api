@@ -20,11 +20,9 @@ export class BoardsService {
   ) {}
 
   async create(createBoardDto: CreateBoardDto) {
-    // validate owner exists
     const owner = await this.userModel.findById(createBoardDto.ownerId).exec();
     if (!owner) throw new NotFoundException('Owner user not found');
 
-    // validate member IDs if provided
     if (createBoardDto.memberIds && createBoardDto.memberIds.length > 0) {
       const members = await this.userModel
         .find({ _id: { $in: createBoardDto.memberIds } })
@@ -49,11 +47,9 @@ export class BoardsService {
   }
 
   async update(id: string, updateBoardDto: UpdateBoardDto) {
-    // validate board exists
     const board = await this.boardModel.findById(id).exec();
     if (!board) throw new NotFoundException('Board not found');
 
-    // if owner is being changed, validate new owner exists
     if (updateBoardDto.ownerId) {
       const newOwner = await this.userModel
         .findById(updateBoardDto.ownerId)
@@ -61,7 +57,6 @@ export class BoardsService {
       if (!newOwner) throw new NotFoundException('New owner user not found');
     }
 
-    // if members are being updated, validate they exist
     if (updateBoardDto.memberIds && updateBoardDto.memberIds.length > 0) {
       const members = await this.userModel
         .find({ _id: { $in: updateBoardDto.memberIds } })
@@ -77,11 +72,9 @@ export class BoardsService {
   }
 
   async remove(id: string) {
-    // validate board exists
     const board = await this.boardModel.findById(id).exec();
     if (!board) throw new NotFoundException('Board not found');
 
-    // check if tasks exist for this board
     const taskCount = await this.taskModel
       .countDocuments({ boardId: id })
       .exec();

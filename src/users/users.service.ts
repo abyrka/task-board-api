@@ -19,16 +19,15 @@ export class UsersService {
     @InjectModel(Board.name) private boardModel: Model<BoardDocument>,
   ) {}
 
-  async create(createDto: CreateUserDto) {
-    // check if email already exists
+  async create(createUserDto: CreateUserDto) {
     const existing = await this.userModel
-      .findOne({ email: createDto.email })
+      .findOne({ email: createUserDto.email })
       .exec();
     if (existing) {
       throw new BadRequestException('Email already in use');
     }
 
-    const created = new this.userModel(createDto);
+    const created = new this.userModel(createUserDto);
     return created.save();
   }
 
@@ -43,7 +42,6 @@ export class UsersService {
   }
 
   async update(id: string, updateDto: UpdateUserDto) {
-    // if email is being updated, check uniqueness
     if (updateDto.email) {
       const existing = await this.userModel
         .findOne({ email: updateDto.email, _id: { $ne: id } })
@@ -60,12 +58,10 @@ export class UsersService {
     return updated;
   }
 
-  async delete(id: string) {
-    // validate user exists
+  async remove(id: string) {
     const user = await this.userModel.findById(id).exec();
     if (!user) throw new NotFoundException('User not found');
 
-    // check if user owns any boards
     const ownedBoardCount = await this.boardModel
       .countDocuments({ ownerId: id })
       .exec();
@@ -75,7 +71,6 @@ export class UsersService {
       );
     }
 
-    // check if user has assigned tasks
     const assignedTaskCount = await this.taskModel
       .countDocuments({ assigneeId: id })
       .exec();

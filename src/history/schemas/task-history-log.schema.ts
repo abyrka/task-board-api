@@ -9,7 +9,7 @@ export class TaskHistoryLog {
   taskId: Types.ObjectId;
 
   @Prop({ required: true })
-  field: string; // e.g. "status", "title", "assigneeId"
+  field: string;
 
   @Prop()
   oldValue?: string;
