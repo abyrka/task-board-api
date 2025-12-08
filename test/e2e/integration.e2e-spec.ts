@@ -769,4 +769,290 @@ describe('Integration (e2e)', () => {
         .expect(200);
     });
   });
+
+  describe('Task Filtering', () => {
+    let boardId: string;
+    let user1Id: string;
+    let user2Id: string;
+
+    beforeAll(async () => {
+      const user1 = await request(app.getHttpServer())
+        .post('/users')
+        .send({
+          name: 'User One',
+          email: `user1-filter-${Date.now()}@test.com`,
+        })
+        .expect(201);
+      user1Id = user1.body._id;
+
+      const user2 = await request(app.getHttpServer())
+        .post('/users')
+        .send({
+          name: 'User Two',
+          email: `user2-filter-${Date.now()}@test.com`,
+        })
+        .expect(201);
+      user2Id = user2.body._id;
+
+      const board = await request(app.getHttpServer())
+        .post('/boards')
+        .send({ name: 'Filter Test Board', ownerId: user1Id })
+        .expect(201);
+      boardId = board.body._id;
+
+      // Create test tasks with different properties
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .send({
+          boardId,
+          title: 'Login Feature',
+          description: 'Implement JWT authentication',
+          status: TaskStatus.TODO,
+          assigneeId: user1Id,
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .send({
+          boardId,
+          title: 'Database Schema',
+          description: 'Design MongoDB collections',
+          status: TaskStatus.IN_PROGRESS,
+          assigneeId: user2Id,
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .send({
+          boardId,
+          title: 'Login Page',
+          description: 'Create frontend login form',
+          status: TaskStatus.DONE,
+          assigneeId: user1Id,
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .send({
+          boardId,
+          title: 'API Documentation',
+          description: 'Write OpenAPI specs',
+          status: TaskStatus.IN_PROGRESS,
+          assigneeId: user2Id,
+        })
+        .expect(201);
+    });
+
+    it('should filter tasks by status', async () => {
+      const todoTasks = await request(app.getHttpServer())
+        .get('/tasks')
+        .query({ status: TaskStatus.TODO })
+        .expect(200);
+
+      expect(todoTasks.body.length).toBeGreaterThanOrEqual(1);
+      expect(todoTasks.body.every((t) => t.status === TaskStatus.TODO)).toBe(
+        true,
+      );
+    });
+
+    it('should filter tasks by assignee', async () => {
+      const user1Tasks = await request(app.getHttpServer())
+        .get('/tasks')
+        .query({ assigneeId: user1Id })
+        .expect(200);
+
+      expect(user1Tasks.body.length).toBeGreaterThanOrEqual(2);
+      expect(
+        user1Tasks.body.every((t) => t.assigneeId === user1Id),
+      ).toBe(true);
+    });
+
+    it('should filter tasks by title (regex)', async () => {
+      const loginTasks = await request(app.getHttpServer())
+        .get('/tasks')
+        .query({ title: 'login' })
+        .expect(200);
+
+      expect(loginTasks.body.length).toBe(2);
+      expect(
+        loginTasks.body.every((t) =>
+          t.title.toLowerCase().includes('login'),
+        ),
+      ).toBe(true);
+    });
+
+    it('should filter tasks by description (regex)', async () => {
+      const authTasks = await request(app.getHttpServer())
+        .get('/tasks')
+        .query({ description: 'authentication' })
+        .expect(200);
+
+      expect(authTasks.body.length).toBeGreaterThanOrEqual(1);
+      expect(authTasks.body[0].description).toContain('authentication');
+    });
+
+    it('should combine multiple filters', async () => {
+      const filteredTasks = await request(app.getHttpServer())
+        .get('/tasks')
+        .query({ status: TaskStatus.IN_PROGRESS, assigneeId: user2Id })
+        .expect(200);
+
+      expect(filteredTasks.body.length).toBe(2);
+      expect(
+        filteredTasks.body.every(
+          (t) => t.status === TaskStatus.IN_PROGRESS && t.assigneeId === user2Id,
+        ),
+      ).toBe(true);
+    });
+  });
+
+  describe('User Boards API', () => {
+    let user1Id: string;
+    let user2Id: string;
+
+    beforeAll(async () => {
+      const user1 = await request(app.getHttpServer())
+        .post('/users')
+        .send({ name: 'Owner 1', email: `owner1-${Date.now()}@test.com` })
+        .expect(201);
+      user1Id = user1.body._id;
+
+      const user2 = await request(app.getHttpServer())
+        .post('/users')
+        .send({ name: 'Owner 2', email: `owner2-${Date.now()}@test.com` })
+        .expect(201);
+      user2Id = user2.body._id;
+
+      // Create boards for user1
+      await request(app.getHttpServer())
+        .post('/boards')
+        .send({ name: 'User1 Board 1', ownerId: user1Id })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/boards')
+        .send({ name: 'User1 Board 2', ownerId: user1Id })
+        .expect(201);
+
+      // Create boards for user2
+      await request(app.getHttpServer())
+        .post('/boards')
+        .send({ name: 'User2 Board 1', ownerId: user2Id })
+        .expect(201);
+    });
+
+    it('should get boards by user id', async () => {
+      const user1Boards = await request(app.getHttpServer())
+        .get(`/boards/user/${user1Id}`)
+        .expect(200);
+
+      expect(user1Boards.body.length).toBe(2);
+      expect(user1Boards.body.every((b) => b.ownerId === user1Id)).toBe(true);
+    });
+
+    it('should return empty array for user with no boards', async () => {
+      const newUser = await request(app.getHttpServer())
+        .post('/users')
+        .send({ name: 'No Boards', email: `noboards-${Date.now()}@test.com` })
+        .expect(201);
+
+      const boards = await request(app.getHttpServer())
+        .get(`/boards/user/${newUser.body._id}`)
+        .expect(200);
+
+      expect(boards.body).toEqual([]);
+    });
+
+    it('should return 404 for non-existent user', async () => {
+      await request(app.getHttpServer())
+        .get('/boards/user/507f1f77bcf86cd799439011')
+        .expect(404);
+    });
+  });
+
+  describe('Task History API', () => {
+    let taskId: string;
+    let userId: string;
+
+    beforeAll(async () => {
+      const user = await request(app.getHttpServer())
+        .post('/users')
+        .send({ name: 'History User', email: `history-${Date.now()}@test.com` })
+        .expect(201);
+      userId = user.body._id;
+
+      const board = await request(app.getHttpServer())
+        .post('/boards')
+        .send({ name: 'History Board', ownerId: userId })
+        .expect(201);
+
+      const task = await request(app.getHttpServer())
+        .post('/tasks')
+        .send({
+          boardId: board.body._id,
+          title: 'Initial Title',
+          description: 'Initial description',
+          status: TaskStatus.TODO,
+          assigneeId: userId,
+        })
+        .expect(201);
+      taskId = task.body._id;
+    });
+
+    it('should get task history', async () => {
+      // Make several updates to create history
+      await request(app.getHttpServer())
+        .patch(`/tasks/${taskId}`)
+        .send({ status: TaskStatus.IN_PROGRESS, changedByUserId: userId })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch(`/tasks/${taskId}`)
+        .send({ title: 'Updated Title', changedByUserId: userId })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch(`/tasks/${taskId}`)
+        .send({
+          description: 'Updated description',
+          changedByUserId: userId,
+        })
+        .expect(200);
+
+      const history = await request(app.getHttpServer())
+        .get('/history')
+        .query({ taskId })
+        .expect(200);
+
+      expect(Array.isArray(history.body)).toBe(true);
+      expect(history.body.length).toBe(3);
+
+      const statusChange = history.body.find((h) => h.field === 'status');
+      expect(statusChange).toBeDefined();
+      expect(statusChange.oldValue).toBe(TaskStatus.TODO);
+      expect(statusChange.newValue).toBe(TaskStatus.IN_PROGRESS);
+
+      const titleChange = history.body.find((h) => h.field === 'title');
+      expect(titleChange).toBeDefined();
+      expect(titleChange.oldValue).toBe('Initial Title');
+      expect(titleChange.newValue).toBe('Updated Title');
+
+      const descriptionChange = history.body.find(
+        (h) => h.field === 'description',
+      );
+      expect(descriptionChange).toBeDefined();
+      expect(descriptionChange.oldValue).toBe('Initial description');
+      expect(descriptionChange.newValue).toBe('Updated description');
+    });
+
+    it('should return 404 for non-existent task', async () => {
+      await request(app.getHttpServer())
+        .get('/history')
+        .query({ taskId: '507f1f77bcf86cd799439011' })
+        .expect(404);
+    });
+  });
 });

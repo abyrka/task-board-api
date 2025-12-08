@@ -22,8 +22,18 @@ export class TasksController {
   }
 
   @Get()
-  findAll(@Query('boardId') boardId?: string) {
+  findAll(@Query() query: Record<string, string>) {
+    const { boardId, status, title, description, assigneeId } = query;
+
     if (boardId) return this.tasksService.findByBoard(boardId);
+    if (status || title || description || assigneeId) {
+      return this.tasksService.findFiltered({
+        status,
+        title,
+        description,
+        assigneeId,
+      });
+    }
     return this.tasksService.findAll();
   }
 

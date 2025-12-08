@@ -5,15 +5,16 @@ A Trello-like Task Board API built with NestJS, MongoDB, and Redis. Features ful
 ## 📋 Features
 
 - **User Management** — Create, read, update, and delete users with email uniqueness validation.
-- **Board Management** — Create boards with owner and member management. Prevents deletion if tasks exist.
-- **Task Management** — Full CRUD with status tracking (todo, in-progress, done), optional assignee assignment.
-- **Task History** — Automatic tracking of all task field changes (title, status, assignee, board).
+- **Board Management** — Create boards with owner management. Prevents deletion if tasks exist. Load user's boards.
+- **Task Management** — Full CRUD with status tracking (todo, in-progress, done), optional assignee and description fields.
+- **Task Filtering** — Filter tasks by status, title, description, or assignee.
+- **Task History** — Automatic tracking of all task field changes (title, description, status, assignee, board).
 - **Comments** — Add, read, update, delete comments on tasks.
 - **Data Integrity** — Database-level and server-side validation:
   - Cannot delete a board while tasks exist.
   - Cannot delete a user who owns boards.
   - Automatic cleanup of comments and history when task is deleted.
-- **Redis Caching** — Caches board tasks, board list, and task comments (60s TTL) with automatic invalidation on mutations.
+- **Redis Caching** — Caches board tasks and task comments (60s TTL) with automatic invalidation on mutations.
 - **Normalized Schema** — Proper Mongoose schemas with indexes and ObjectId references.
 - **TypeScript Enums** — TaskStatus enum for type safety.
 - **Centralized Constants** — Model names centralized in constants for consistency.
@@ -173,12 +174,14 @@ Content-Type: application/json
 
 {
   "name": "My Project",
-  "ownerId": "64a1b2c3d4e5f6g7h8i9j0k1",
-  "memberIds": ["64a1b2c3d4e5f6g7h8i9j0k2"]
+  "ownerId": "64a1b2c3d4e5f6g7h8i9j0k1"
 }
 
 # List all boards
 GET /boards
+
+# Get boards by user (owner)
+GET /boards/user/:userId
 
 # Get board by ID
 GET /boards/:boardId
@@ -205,7 +208,9 @@ Content-Type: application/json
 {
   "boardId": "64a1b2c3d4e5f6g7h8i9j0k1",
   "title": "Implement login",
-  "status": "todo"
+  "description": "Add JWT authentication",
+  "status": "todo",
+  "assigneeId": "64a1b2c3d4e5f6g7h8i9j0k2"
 }
 
 # List all tasks
@@ -213,6 +218,21 @@ GET /tasks
 
 # List tasks by board (cached)
 GET /tasks?boardId=64a1b2c3d4e5f6g7h8i9j0k1
+
+# Filter tasks by status
+GET /tasks?status=in-progress
+
+# Filter tasks by assignee
+GET /tasks?assigneeId=64a1b2c3d4e5f6g7h8i9j0k2
+
+# Filter tasks by title (regex search, case-insensitive)
+GET /tasks?title=login
+
+# Filter tasks by description (regex search, case-insensitive)
+GET /tasks?description=authentication
+
+# Combine filters
+GET /tasks?status=in-progress&assigneeId=64a1b2c3d4e5f6g7h8i9j0k2
 
 # Get task by ID
 GET /tasks/:taskId
@@ -223,6 +243,7 @@ Content-Type: application/json
 
 {
   "status": "in-progress",
+  "assigneeId": "64a1b2c3d4e5f6g7h8i9j0k3",
   "changedByUserId": "64a1b2c3d4e5f6g7h8i9j0k4"
 }
 
@@ -264,6 +285,13 @@ Content-Type: application/json
 DELETE /comments/:commentId
 ```
 
+### Task History
+
+```http
+# Get task history logs
+GET /history?taskId=64a1b2c3d4e5f6g7h8i9j0k1
+```
+
 ## 📊 Data Models
 
 ### User
@@ -283,7 +311,6 @@ DELETE /comments/:commentId
   "_id": "ObjectId",
   "name": "string",
   "ownerId": "ObjectId (ref: User)",
-  "memberIds": ["ObjectId (ref: User)"],
   "createdAt": "Date",
   "updatedAt": "Date"
 }
@@ -295,6 +322,8 @@ DELETE /comments/:commentId
   "_id": "ObjectId",
   "boardId": "ObjectId (ref: Board)",
   "title": "string",
+  "description": "string (optional)",
+  "assigneeId": "ObjectId (ref: User, optional)",
   "status": "enum: TaskStatus.TODO | TaskStatus.IN_PROGRESS | TaskStatus.DONE",
   "createdAt": "Date",
   "updatedAt": "Date"
@@ -318,7 +347,7 @@ DELETE /comments/:commentId
 {
   "_id": "ObjectId",
   "taskId": "ObjectId (ref: Task)",
-  "field": "string (e.g. 'status', 'title', 'boardId')",
+  "field": "string (e.g. 'status', 'title', 'description', 'assigneeId', 'boardId')",
   "oldValue": "string (optional)",
   "newValue": "string (optional)",
   "changedByUserId": "ObjectId (ref: User, optional)",
@@ -341,8 +370,6 @@ DELETE /comments/:commentId
 
 ## ⚡ Caching Strategy
 
-- **All Boards**: Cached at `all_boards` (60s TTL)
-  - Invalidated on board create/update/delete
 - **Board Tasks**: Cached at `board:{boardId}:tasks` (60s TTL)
   - Invalidated on task create/update/delete
 - **Task Comments**: Cached at `task:{taskId}:comments` (60s TTL)
@@ -366,11 +393,15 @@ npm run test:cov
 **Test Coverage Includes:**
 - ✅ User CRUD operations (6 tests)
 - ✅ Board CRUD operations (5 tests)
-- ✅ Task CRUD and filtering (7 tests)
+- ✅ Task CRUD and status management (7 tests)
 - ✅ Comments CRUD and caching (5 tests)
-- ✅ Task history logging (4 tests)
-- ✅ Data integrity validations (4 tests)
+- ✅ Task history logging (3 tests)
+- ✅ Data integrity validations (3 tests)
 - ✅ Complete workflow integration (1 test)
+- ✅ Task filtering (5 tests)
+- ✅ User boards API (3 tests)
+- ✅ Task history API (2 tests)
+- **Total: 43 integration tests**
 
 ## 🐳 Docker Deployment
 
@@ -420,14 +451,14 @@ curl -X POST http://localhost:3000/users \
 ```bash
 curl -X POST http://localhost:3000/boards \
   -H "Content-Type: application/json" \
-  -d '{"name":"Q4 Planning","ownerId":"<user_bob_id>","memberIds":["<user_alice_id>"]}'
+  -d '{"name":"Q4 Planning","ownerId":"<user_bob_id>"}'
 ```
 
 ### 4. Create a task
 ```bash
 curl -X POST http://localhost:3000/tasks \
   -H "Content-Type: application/json" \
-  -d '{"boardId":"<board_id>","title":"Design UI","status":"todo"}'
+  -d '{"boardId":"<board_id>","title":"Design UI","description":"Create mockups","status":"todo","assigneeId":"<user_alice_id>"}'
 ```
 
 ### 5. Update task status (creates history)
@@ -447,6 +478,21 @@ curl -X POST http://localhost:3000/comments \
 ### 7. Get task comments (cached on second request)
 ```bash
 curl http://localhost:3000/comments?taskId=<task_id>
+```
+
+### 8. Get task history
+```bash
+curl http://localhost:3000/history?taskId=<task_id>
+```
+
+### 9. Filter tasks by status
+```bash
+curl "http://localhost:3000/tasks?status=in-progress"
+```
+
+### 10. Get user's boards
+```bash
+curl http://localhost:3000/boards/user/<user_bob_id>
 ```
 
 ## 🐛 Troubleshooting

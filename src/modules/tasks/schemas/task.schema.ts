@@ -18,6 +18,12 @@ export class Task {
   @Prop({ required: true })
   title: string;
 
+  @Prop()
+  description?: string;
+
+  @Prop({ type: Types.ObjectId, ref: MODEL_NAMES.USER, index: true })
+  assigneeId?: Types.ObjectId;
+
   @Prop({ type: String, enum: TaskStatus, default: TaskStatus.TODO })
   status: TaskStatus;
 }
@@ -25,6 +31,7 @@ export class Task {
 export const TaskSchema = SchemaFactory.createForClass(Task);
 
 TaskSchema.index({ boardId: 1, status: 1 });
+TaskSchema.index({ assigneeId: 1, status: 1 });
 
 // Pre-hook to clean up related comments and history logs when task is deleted
 TaskSchema.pre('deleteOne', async function (next) {

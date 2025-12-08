@@ -31,6 +31,13 @@ export class BoardsService {
     return this.boardModel.find().exec();
   }
 
+  async findByUser(userId: string) {
+    const user = await this.userModel.findById(userId).exec();
+    if (!user) throw new NotFoundException('User not found');
+
+    return this.boardModel.find({ ownerId: userId }).exec();
+  }
+
   async findOne(id: string) {
     const board = await this.boardModel.findById(id).exec();
     if (!board) throw new NotFoundException('Board not found');

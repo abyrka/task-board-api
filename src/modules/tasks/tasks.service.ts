@@ -37,6 +37,21 @@ export class TasksService {
     return this.taskModel.find().exec();
   }
 
+  async findFiltered(filters: {
+    status?: string;
+    title?: string;
+    description?: string;
+    assigneeId?: string;
+  }) {
+    const query: any = {};
+    if (filters.status) query.status = filters.status;
+    if (filters.title) query.title = { $regex: filters.title, $options: 'i' };
+    if (filters.description)
+      query.description = { $regex: filters.description, $options: 'i' };
+    if (filters.assigneeId) query.assigneeId = filters.assigneeId;
+    return this.taskModel.find(query).exec();
+  }
+
   async findByBoard(boardId: string) {
     const key = `board:${boardId}:tasks`;
     const cached = await this.cacheService.get<any[]>(key);
@@ -59,7 +74,13 @@ export class TasksService {
 
     const mutable = updateTaskDto as any;
     const historyEntries: Partial<TaskHistoryLog>[] = [];
-    const allowedFields = ['title', 'status', 'boardId'];
+    const allowedFields = [
+      'title',
+      'description',
+      'status',
+      'assigneeId',
+      'boardId',
+    ];
     for (const key of allowedFields) {
       if (key === 'changedByUserId') continue;
       if (!(key in mutable)) continue;

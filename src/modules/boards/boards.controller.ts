@@ -25,6 +25,11 @@ export class BoardsController {
     return this.boardsService.findAll();
   }
 
+  @Get('user/:userId')
+  findByUser(@Param('userId') userId: string) {
+    return this.boardsService.findByUser(userId);
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.boardsService.findOne(id);
