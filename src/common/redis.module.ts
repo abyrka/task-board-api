@@ -9,18 +9,23 @@ const redisFactory = () => {
     maxRetriesPerRequest: 3,
     enableReadyCheck: false,
     lazyConnect: true,
+    retryStrategy: () => null,
   });
 
-  client.on('error', (err) => {
-    console.warn(
-      'Redis connection error (running without cache):',
-      err.message,
-    );
-  });
+  if (process.env.NODE_ENV !== 'test') {
+    client.on('error', (err) => {
+      console.warn(
+        'Redis connection error (running without cache):',
+        err.message,
+      );
+    });
 
-  client.connect().catch(() => {
-    console.warn('Redis unavailable - running without cache');
-  });
+    client.connect().catch(() => {
+      console.warn('Redis unavailable - running without cache');
+    });
+  } else {
+    client.disconnect();
+  }
 
   return client;
 };

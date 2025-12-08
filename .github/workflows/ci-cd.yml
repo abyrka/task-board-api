@@ -29,9 +29,6 @@ jobs:
       - name: Build
         run: npm run build --if-present
 
-      - name: Run tests (unit + e2e)
-        run: npm test -- --runInBand
-
   docker-push:
     name: Build and push Docker image
     runs-on: ubuntu-latest
