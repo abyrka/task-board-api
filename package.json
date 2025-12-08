@@ -67,8 +67,9 @@
       "ts"
     ],
     "rootDir": ".",
-    "testMatch": [
-      "<rootDir>/test/**/*(*.)@(spec|test).ts"
+    "testRegex": "(test|spec)\\.ts$",
+    "testPathIgnorePatterns": [
+      "/node_modules/"
     ],
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
