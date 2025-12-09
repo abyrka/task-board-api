@@ -6,18 +6,24 @@ A Trello-like Task Board API built with NestJS, MongoDB, and Redis. Features ful
 
 - **User Management** — Create, read, update, and delete users with email uniqueness validation.
 - **Board Management** — Create boards with owner management. Prevents deletion if tasks exist. Load user's boards.
-- **Task Management** — Full CRUD with status tracking (todo, in-progress, done), optional assignee and description fields.
-- **Task Filtering** — Filter tasks by status, title, description, or assignee.
-- **Task History** — Automatic tracking of all task field changes (title, description, status, assignee, board).
+- **Task Management** — Full CRUD with status tracking (todo, in-progress, done), assignee and description fields.
+- **Advanced Task Filtering** — Filter tasks by any combination of boardId, status, title (regex), description (regex), or assignee.
+- **Mandatory Change Tracking** — All task updates require `changedByUserId` to track who made the change.
+- **Comprehensive Task History** — Automatic tracking of all task field changes (title, description, status, assignee, board) with user attribution.
+  - Get history for specific tasks
+  - Get aggregated history for all tasks in user's boards
 - **Comments** — Add, read, update, delete comments on tasks.
 - **Data Integrity** — Database-level and server-side validation:
   - Cannot delete a board while tasks exist.
   - Cannot delete a user who owns boards.
-  - Automatic cleanup of comments and history when task is deleted.
+  - Automatic cascade deletion of comments and history when task is deleted.
 - **Redis Caching** — Caches board tasks and task comments (60s TTL) with automatic invalidation on mutations.
-- **Normalized Schema** — Proper Mongoose schemas with indexes and ObjectId references.
+- **Optimized Database** — Strategic indexes on frequently queried fields:
+  - Single-field indexes: email, ownerId, boardId, taskId, assigneeId
+  - Compound indexes: {boardId, status}, {assigneeId, status}
 - **TypeScript Enums** — TaskStatus enum for type safety.
 - **Centralized Constants** — Model names centralized in constants for consistency.
+- **Modular Test Suite** — 44 tests split across 6 module-specific e2e test files.
 
 ## 🚀 Prerequisites
 
@@ -111,12 +117,9 @@ src/
 │   │   └── schemas/
 │   │       └── user.schema.ts
 │   ├── boards/             # Board CRUD module
-│   ├── tasks/              # Task CRUD + history module
-│   │   ├── constants/
-│   │   │   └── task-status.constants.ts
-│   │   └── ...
+│   ├── tasks/              # Task CRUD + filtering module
 │   ├── comments/           # Comment CRUD module
-│   └── history/            # Task history logging
+│   └── history/            # Task history logging + API
 ├── shared/                 # Shared utilities
 │   ├── cache.service.ts    # Redis cache wrapper
 │   ├── redis.module.ts     # Redis provider (global)
@@ -130,7 +133,13 @@ src/
 test/
 ├── app.e2e-spec.ts        # Basic app initialization test
 └── e2e/
-    └── integration.e2e-spec.ts  # Comprehensive integration tests (35 tests)
+    ├── setup.ts               # Shared test setup utilities
+    ├── users.e2e-spec.ts      # User module tests (6 tests)
+    ├── boards.e2e-spec.ts     # Board module tests (8 tests)
+    ├── tasks.e2e-spec.ts      # Task module tests (14 tests)
+    ├── comments.e2e-spec.ts   # Comment module tests (5 tests)
+    ├── history.e2e-spec.ts    # History module tests (8 tests)
+    └── validations.e2e-spec.ts # Validation & workflow tests (4 tests)
 ```
 
 ## 📚 API Endpoints
@@ -213,38 +222,41 @@ Content-Type: application/json
   "assigneeId": "64a1b2c3d4e5f6g7h8i9j0k2"
 }
 
-# List all tasks
+# Get all tasks
 GET /tasks
 
-# List tasks by board (cached)
+# Get tasks for a specific board
 GET /tasks?boardId=64a1b2c3d4e5f6g7h8i9j0k1
 
-# Filter tasks by status
+# Filter by status
 GET /tasks?status=in-progress
 
-# Filter tasks by assignee
+# Filter by assignee
 GET /tasks?assigneeId=64a1b2c3d4e5f6g7h8i9j0k2
 
-# Filter tasks by title (regex search, case-insensitive)
-GET /tasks?title=login
+# Filter by title (regex search, case-insensitive)
+GET /tasks?title=authentication
 
-# Filter tasks by description (regex search, case-insensitive)
+# Filter by description (regex search, case-insensitive)
 GET /tasks?description=authentication
 
-# Combine filters
-GET /tasks?status=in-progress&assigneeId=64a1b2c3d4e5f6g7h8i9j0k2
+# Combine multiple filters
+GET /tasks?boardId=xxx&status=in-progress&assigneeId=yyy
 
 # Get task by ID
 GET /tasks/:taskId
 
 # Update task (creates history entry for each changed field)
+# Note: changedByUserId is REQUIRED for all updates
 PATCH /tasks/:taskId
 Content-Type: application/json
 
 {
+  "title": "Updated title",
   "status": "in-progress",
+  "description": "Updated description",
   "assigneeId": "64a1b2c3d4e5f6g7h8i9j0k3",
-  "changedByUserId": "64a1b2c3d4e5f6g7h8i9j0k4"
+  "changedByUserId": "64a1b2c3d4e5f6g7h8i9j0k4"  // Required - user who made the change
 }
 
 # Delete task (cascades: deletes comments and history)
@@ -290,6 +302,9 @@ DELETE /comments/:commentId
 ```http
 # Get task history logs
 GET /history?taskId=64a1b2c3d4e5f6g7h8i9j0k1
+
+# Get all history for user's boards
+GET /history/user/:userId
 ```
 
 ## 📊 Data Models
@@ -323,8 +338,8 @@ GET /history?taskId=64a1b2c3d4e5f6g7h8i9j0k1
   "boardId": "ObjectId (ref: Board)",
   "title": "string",
   "description": "string (optional)",
+  "status": "todo | in-progress | done",
   "assigneeId": "ObjectId (ref: User, optional)",
-  "status": "enum: TaskStatus.TODO | TaskStatus.IN_PROGRESS | TaskStatus.DONE",
   "createdAt": "Date",
   "updatedAt": "Date"
 }
@@ -347,14 +362,24 @@ GET /history?taskId=64a1b2c3d4e5f6g7h8i9j0k1
 {
   "_id": "ObjectId",
   "taskId": "ObjectId (ref: Task)",
-  "field": "string (e.g. 'status', 'title', 'description', 'assigneeId', 'boardId')",
+  "field": "string (title|description|status|assigneeId|boardId)",
   "oldValue": "string (optional)",
   "newValue": "string (optional)",
-  "changedByUserId": "ObjectId (ref: User, optional)",
+  "changedByUserId": "ObjectId (ref: User, required)",
   "createdAt": "Date",
   "updatedAt": "Date"
 }
 ```
+
+## 🗄️ Database Indexes
+
+**Optimized for query performance:**
+
+- **User**: `email` (unique)
+- **Board**: `ownerId`
+- **Task**: `boardId`, `assigneeId`, `{boardId, status}`, `{assigneeId, status}`
+- **TaskComment**: `taskId`
+- **TaskHistoryLog**: `taskId`
 
 ## 🔒 Data Integrity Rules
 
@@ -383,25 +408,24 @@ GET /history?taskId=64a1b2c3d4e5f6g7h8i9j0k1
 # Run all tests
 npm test
 
-# Run e2e integration tests (35 test cases)
+# Run all e2e integration tests
 npm run test:e2e
+
+# Run specific module tests
+npm test -- test/e2e/users.e2e-spec.ts
+npm test -- test/e2e/tasks.e2e-spec.ts
 
 # Test coverage
 npm run test:cov
 ```
 
-**Test Coverage Includes:**
-- ✅ User CRUD operations (6 tests)
-- ✅ Board CRUD operations (5 tests)
-- ✅ Task CRUD and status management (7 tests)
-- ✅ Comments CRUD and caching (5 tests)
-- ✅ Task history logging (3 tests)
-- ✅ Data integrity validations (3 tests)
-- ✅ Complete workflow integration (1 test)
-- ✅ Task filtering (5 tests)
-- ✅ User boards API (3 tests)
-- ✅ Task history API (2 tests)
-- **Total: 43 integration tests**
+**Test Coverage (44 tests across 6 modules):**
+- ✅ **users.e2e-spec.ts** - User CRUD operations (6 tests)
+- ✅ **boards.e2e-spec.ts** - Board CRUD + user boards API (8 tests)
+- ✅ **tasks.e2e-spec.ts** - Task CRUD, filtering, caching (14 tests)
+- ✅ **comments.e2e-spec.ts** - Comment CRUD and caching (5 tests)
+- ✅ **history.e2e-spec.ts** - History logging + API (8 tests)
+- ✅ **validations.e2e-spec.ts** - Data integrity + workflow (4 tests)
 
 ## 🐳 Docker Deployment
 
@@ -435,64 +459,69 @@ docker run -p 3001:3001 \
 
 ### 1. Create a user
 ```bash
-curl -X POST http://localhost:3000/users \
+curl -X POST http://localhost:3001/users \
   -H "Content-Type: application/json" \
   -d '{"name":"Alice","email":"alice@example.com"}'
 ```
 
 ### 2. Create another user (for board ownership)
 ```bash
-curl -X POST http://localhost:3000/users \
+curl -X POST http://localhost:3001/users \
   -H "Content-Type: application/json" \
   -d '{"name":"Bob","email":"bob@example.com"}'
 ```
 
-### 3. Create a board
+### 3. Create a board (use Bob's user ID from step 2)
 ```bash
-curl -X POST http://localhost:3000/boards \
+curl -X POST http://localhost:3001/boards \
   -H "Content-Type: application/json" \
-  -d '{"name":"Q4 Planning","ownerId":"<user_bob_id>"}'
+  -d '{"name":"Development Board","ownerId":"<user_bob_id>"}'
 ```
 
-### 4. Create a task
+### 4. Create a task (use board ID from step 3)
 ```bash
-curl -X POST http://localhost:3000/tasks \
+curl -X POST http://localhost:3001/tasks \
   -H "Content-Type: application/json" \
-  -d '{"boardId":"<board_id>","title":"Design UI","description":"Create mockups","status":"todo","assigneeId":"<user_alice_id>"}'
+  -d '{"boardId":"<board_id>","title":"Setup MongoDB","status":"todo","assigneeId":"<user_alice_id>"}'
 ```
 
-### 5. Update task status (creates history)
+### 5. Update task status (creates history log)
 ```bash
-curl -X PATCH http://localhost:3000/tasks/<task_id> \
+curl -X PATCH http://localhost:3001/tasks/<task_id> \
   -H "Content-Type: application/json" \
-  -d '{"status":"in-progress","changedByUserId":"<user_bob_id>"}'
+  -d '{"status":"in-progress","changedByUserId":"<user_alice_id>"}'
 ```
 
 ### 6. Add a comment
 ```bash
-curl -X POST http://localhost:3000/comments \
+curl -X POST http://localhost:3001/comments \
   -H "Content-Type: application/json" \
-  -d '{"taskId":"<task_id>","userId":"<user_alice_id>","text":"Started working on this"}'
+  -d '{"taskId":"<task_id>","userId":"<user_bob_id>","text":"Looking good!"}'
 ```
 
 ### 7. Get task comments (cached on second request)
 ```bash
-curl http://localhost:3000/comments?taskId=<task_id>
+curl http://localhost:3001/comments?taskId=<task_id>
 ```
 
 ### 8. Get task history
 ```bash
-curl http://localhost:3000/history?taskId=<task_id>
+curl http://localhost:3001/history?taskId=<task_id>
 ```
 
-### 9. Filter tasks by status
+### 9. Get all history for user's boards
 ```bash
-curl "http://localhost:3000/tasks?status=in-progress"
+curl http://localhost:3001/history/user/<user_id>
 ```
 
-### 10. Get user's boards
+### 10. Filter tasks by status
 ```bash
-curl http://localhost:3000/boards/user/<user_bob_id>
+curl "http://localhost:3001/tasks?status=in-progress"
+```
+
+### 11. Get user's boards
+```bash
+curl http://localhost:3001/boards/user/<user_bob_id>
 ```
 
 ## 🐛 Troubleshooting
@@ -512,17 +541,21 @@ curl http://localhost:3000/boards/user/<user_bob_id>
 **"Cannot determine a type for the Task.status field"**
 - Ensure `TaskStatus` enum is properly configured with `@Prop({ type: String, enum: TaskStatus })`
 
+**"changedByUserId must be a mongodb id"**
+- When updating tasks, you must include a valid `changedByUserId` in the request body
+- This field is mandatory to track who made the change for audit purposes
+
 ## 🛠️ Tech Stack
 
 - **Framework**: NestJS 11.x
-- **Language**: TypeScript 5.x
-- **Database**: MongoDB with Mongoose ODM
-- **Caching**: Redis via ioredis
+- **Language**: TypeScript 5.x (strict mode)
+- **Database**: MongoDB 8.x with Mongoose ODM
+- **Cache**: Redis 7.x (optional, via ioredis)
 - **Validation**: class-validator, class-transformer
-- **Testing**: Jest + Supertest
-- **Linting**: ESLint 9.x with TypeScript flat config
+- **Testing**: Jest 30.x + Supertest + MongoDB Memory Server
+- **Code Quality**: ESLint 9.x (flat config), Prettier
+- **Container**: Docker (multi-stage build)
 - **CI/CD**: GitHub Actions
-- **Containerization**: Docker
 
 ## 📖 Additional Resources
 
@@ -535,8 +568,4 @@ curl http://localhost:3000/boards/user/<user_bob_id>
 
 ## 📄 License
 
-This project is MIT licensed.
-
----
-
-**Built with ❤️ using NestJS**
+This project is licensed under the UNLICENSED License.

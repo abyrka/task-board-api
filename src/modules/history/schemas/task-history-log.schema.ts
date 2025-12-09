@@ -23,8 +23,8 @@ export class TaskHistoryLog {
   @Prop()
   newValue?: string;
 
-  @Prop({ type: Types.ObjectId, ref: MODEL_NAMES.USER })
-  changedByUserId?: Types.ObjectId;
+  @Prop({ type: Types.ObjectId, ref: MODEL_NAMES.USER, required: true })
+  changedByUserId: Types.ObjectId;
 }
 
 export const TaskHistoryLogSchema =

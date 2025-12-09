@@ -9,6 +9,14 @@ export class CreateTaskDto {
   title: string;
 
   @IsOptional()
+  @IsString()
+  description?: string;
+
+  @IsOptional()
+  @IsMongoId()
+  assigneeId?: string;
+
+  @IsOptional()
   @IsEnum(TaskStatus)
   status?: TaskStatus;
 }

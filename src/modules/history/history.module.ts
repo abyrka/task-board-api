@@ -5,6 +5,7 @@ import {
   TaskHistoryLogSchema,
 } from './schemas/task-history-log.schema';
 import { Task, TaskSchema } from '../tasks/schemas/task.schema';
+import { Board, BoardSchema } from '../boards/schemas/board.schema';
 import { HistoryController } from './history.controller';
 import { HistoryService } from './history.service';
 
@@ -13,6 +14,7 @@ import { HistoryService } from './history.service';
     MongooseModule.forFeature([
       { name: TaskHistoryLog.name, schema: TaskHistoryLogSchema },
       { name: Task.name, schema: TaskSchema },
+      { name: Board.name, schema: BoardSchema },
     ]),
   ],
   providers: [HistoryService],

@@ -1,4 +1,4 @@
-import { Controller, Get, Query } from '@nestjs/common';
+import { Controller, Get, Query, Param, Header } from '@nestjs/common';
 import { HistoryService } from './history.service';
 
 @Controller('history')
@@ -8,5 +8,10 @@ export class HistoryController {
   @Get()
   findByTask(@Query('taskId') taskId: string) {
     return this.historyService.findByTask(taskId);
+  }
+
+  @Get('user/:userId')
+  findByUserBoards(@Param('userId') userId: string) {
+    return this.historyService.findByUserBoards(userId);
   }
 }

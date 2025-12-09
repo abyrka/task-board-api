@@ -38,12 +38,14 @@ export class TasksService {
   }
 
   async findFiltered(filters: {
+    boardId?: string;
     status?: string;
     title?: string;
     description?: string;
     assigneeId?: string;
   }) {
     const query: any = {};
+    if (filters.boardId) query.boardId = filters.boardId;
     if (filters.status) query.status = filters.status;
     if (filters.title) query.title = { $regex: filters.title, $options: 'i' };
     if (filters.description)
