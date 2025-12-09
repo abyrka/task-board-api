@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -25,6 +26,23 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
+
+  // Swagger documentation setup
+  const config = new DocumentBuilder()
+    .setTitle('Task Board API')
+    .setDescription(
+      'A Trello-like Task Board API with full CRUD operations for Users, Boards, Tasks, and Comments. Features include task history tracking, board member management, advanced filtering, and Redis caching.',
+    )
+    .setVersion('1.0')
+    .addTag('users', 'User management endpoints')
+    .addTag('boards', 'Board management endpoints')
+    .addTag('tasks', 'Task management endpoints')
+    .addTag('comments', 'Comment management endpoints')
+    .addTag('history', 'Task history endpoints')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
 
   await app.listen(process.env.PORT ?? 3001);
 }

@@ -29,6 +29,7 @@ A Trello-like Task Board API built with NestJS, MongoDB, and Redis. Features ful
   - Compound indexes: {boardId, status}, {assigneeId, status}
 - **TypeScript Enums** — TaskStatus enum for type safety.
 - **Centralized Constants** — Model names centralized in constants for consistency.
+- **Swagger/OpenAPI Documentation** — Interactive API documentation available at `/api` endpoint.
 - **Modular Test Suite** — 56 tests split across 6 module-specific e2e test files.
 
 ## 🚀 Prerequisites
@@ -107,6 +108,8 @@ npm run start:dev
 ```
 
 The API will be available at `http://localhost:3001`
+
+**Swagger API Documentation** is available at `http://localhost:3001/api`
 
 ## 🏗️ Project Structure
 
