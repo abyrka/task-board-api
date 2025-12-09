@@ -44,4 +44,12 @@ export class BoardsController {
   remove(@Param('id') id: string) {
     return this.boardsService.remove(id);
   }
+
+  @Patch(':id/members')
+  updateMembers(
+    @Param('id') id: string,
+    @Body() body: { memberIds: string[] },
+  ) {
+    return this.boardsService.updateMembers(id, body.memberIds);
+  }
 }

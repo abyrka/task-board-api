@@ -16,6 +16,12 @@ export class Board {
     index: true,
   })
   ownerId: Types.ObjectId;
+
+  @Prop({
+    type: [{ type: Types.ObjectId, ref: MODEL_NAMES.USER }],
+    default: [],
+  })
+  memberIds: Types.ObjectId[];
 }
 
 export const BoardSchema = SchemaFactory.createForClass(Board);

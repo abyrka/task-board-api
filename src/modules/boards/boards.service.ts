@@ -23,6 +23,10 @@ export class BoardsService {
     const owner = await this.userModel.findById(createBoardDto.ownerId).exec();
     if (!owner) throw new NotFoundException('Owner user not found');
 
+    if (createBoardDto.memberIds && createBoardDto.memberIds.length > 0) {
+      await this.validateMembers(createBoardDto.memberIds);
+    }
+
     const created = new this.boardModel(createBoardDto);
     return created.save();
   }
@@ -35,7 +39,11 @@ export class BoardsService {
     const user = await this.userModel.findById(userId).exec();
     if (!user) throw new NotFoundException('User not found');
 
-    return this.boardModel.find({ ownerId: userId }).exec();
+    return this.boardModel
+      .find({
+        $or: [{ ownerId: userId }, { memberIds: userId }],
+      })
+      .exec();
   }
 
   async findOne(id: string) {
@@ -74,5 +82,25 @@ export class BoardsService {
     }
 
     return this.boardModel.findByIdAndDelete(id).exec();
+  }
+
+  async updateMembers(id: string, memberIds: string[]) {
+    const board = await this.boardModel.findById(id).exec();
+    if (!board) throw new NotFoundException('Board not found');
+
+    await this.validateMembers(memberIds);
+
+    return this.boardModel
+      .findByIdAndUpdate(id, { memberIds }, { new: true })
+      .exec();
+  }
+
+  private async validateMembers(memberIds: string[]) {
+    for (const memberId of memberIds) {
+      const member = await this.userModel.findById(memberId).exec();
+      if (!member) {
+        throw new NotFoundException(`User with id ${memberId} not found`);
+      }
+    }
   }
 }

@@ -346,5 +346,91 @@ describe('Tasks (e2e)', () => {
         ),
       ).toBe(true);
     });
+
+    it('should cache filtered queries', async () => {
+      const filters = { status: TaskStatus.TODO, assigneeId: assignee2Id };
+      const cacheKey = `tasks:filtered:${JSON.stringify(filters)}`;
+
+      await cacheService.del(cacheKey);
+
+      // First request - should fetch from DB
+      const res1 = await request(app.getHttpServer())
+        .get('/tasks')
+        .query(filters)
+        .expect(200);
+
+      expect(res1.body.length).toBeGreaterThanOrEqual(1);
+
+      // Verify cache was set
+      const cached = await cacheService.get(cacheKey);
+      expect(cached).toBeDefined();
+
+      // Second request - should return from cache
+      const res2 = await request(app.getHttpServer())
+        .get('/tasks')
+        .query(filters)
+        .expect(200);
+
+      expect(res2.body).toEqual(res1.body);
+    });
+
+    it('should invalidate filtered cache on task creation', async () => {
+      const filters = { boardId };
+      const cacheKey = `tasks:filtered:${JSON.stringify(filters)}`;
+
+      // Populate cache
+      await request(app.getHttpServer())
+        .get('/tasks')
+        .query(filters)
+        .expect(200);
+
+      const beforeCache = await cacheService.get(cacheKey);
+      expect(beforeCache).toBeDefined();
+
+      // Create new task
+      await request(app.getHttpServer())
+        .post('/tasks')
+        .send({
+          boardId,
+          title: 'New Task',
+          status: TaskStatus.TODO,
+        })
+        .expect(201);
+
+      // Cache should be invalidated
+      const afterCache = await cacheService.get(cacheKey);
+      expect(afterCache).toBeNull();
+    });
+
+    it('should cache different filter combinations separately', async () => {
+      const filters1 = { status: TaskStatus.TODO };
+      const filters2 = { status: TaskStatus.IN_PROGRESS };
+      const cacheKey1 = `tasks:filtered:${JSON.stringify(filters1)}`;
+      const cacheKey2 = `tasks:filtered:${JSON.stringify(filters2)}`;
+
+      await cacheService.del(cacheKey1, cacheKey2);
+
+      // Request with first filter
+      const res1 = await request(app.getHttpServer())
+        .get('/tasks')
+        .query(filters1)
+        .expect(200);
+
+      // Request with second filter
+      const res2 = await request(app.getHttpServer())
+        .get('/tasks')
+        .query(filters2)
+        .expect(200);
+
+      // Both should be cached separately
+      const cache1 = await cacheService.get(cacheKey1);
+      const cache2 = await cacheService.get(cacheKey2);
+
+      expect(cache1).toBeDefined();
+      expect(cache2).toBeDefined();
+
+      // Verify they return different results
+      expect(res1.body.length).not.toBe(res2.body.length);
+    });
   });
 });

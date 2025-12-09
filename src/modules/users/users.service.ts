@@ -10,6 +10,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { Task, TaskDocument } from '../tasks/schemas/task.schema';
 import { Board, BoardDocument } from '../boards/schemas/board.schema';
+import { CacheService } from '../../shared/cache.service';
 
 @Injectable()
 export class UsersService {
@@ -17,6 +18,7 @@ export class UsersService {
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     @InjectModel(Task.name) private taskModel: Model<TaskDocument>,
     @InjectModel(Board.name) private boardModel: Model<BoardDocument>,
+    private cacheService: CacheService,
   ) {}
 
   async create(createUserDto: CreateUserDto) {
@@ -28,11 +30,19 @@ export class UsersService {
     }
 
     const created = new this.userModel(createUserDto);
-    return created.save();
+    const saved = await created.save();
+    await this.cacheService.del('users:all');
+    return saved;
   }
 
-  findAll() {
-    return this.userModel.find().sort({ createdAt: -1 }).exec();
+  async findAll() {
+    const cacheKey = 'users:all';
+    const cached = await this.cacheService.get(cacheKey);
+    if (cached) return cached;
+
+    const users = await this.userModel.find().sort({ createdAt: -1 }).exec();
+    await this.cacheService.set(cacheKey, users);
+    return users;
   }
 
   async findOne(id: string) {
@@ -55,6 +65,8 @@ export class UsersService {
       .findByIdAndUpdate(id, updateDto, { new: true })
       .exec();
     if (!updated) throw new NotFoundException('User not found');
+
+    await this.cacheService.del('users:all');
     return updated;
   }
 
@@ -71,6 +83,8 @@ export class UsersService {
       );
     }
 
-    return this.userModel.findByIdAndDelete(id).exec();
+    const deleted = await this.userModel.findByIdAndDelete(id).exec();
+    await this.cacheService.del('users:all');
+    return deleted;
   }
 }

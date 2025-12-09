@@ -6,4 +6,9 @@ export class CreateBoardDto {
 
   @IsMongoId()
   ownerId: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsMongoId({ each: true })
+  memberIds?: string[];
 }

@@ -5,7 +5,9 @@ A Trello-like Task Board API built with NestJS, MongoDB, and Redis. Features ful
 ## 📋 Features
 
 - **User Management** — Create, read, update, and delete users with email uniqueness validation.
-- **Board Management** — Create boards with owner management. Prevents deletion if tasks exist. Load user's boards.
+- **Board Management** — Create boards with owner and member management. Prevents deletion if tasks exist.
+  - Assign members to boards
+  - Get boards where user is owner or member
 - **Task Management** — Full CRUD with status tracking (todo, in-progress, done), assignee and description fields.
 - **Advanced Task Filtering** — Filter tasks by any combination of boardId, status, title (regex), description (regex), or assignee.
 - **Mandatory Change Tracking** — All task updates require `changedByUserId` to track who made the change.
@@ -17,13 +19,17 @@ A Trello-like Task Board API built with NestJS, MongoDB, and Redis. Features ful
   - Cannot delete a board while tasks exist.
   - Cannot delete a user who owns boards.
   - Automatic cascade deletion of comments and history when task is deleted.
-- **Redis Caching** — Caches board tasks and task comments (60s TTL) with automatic invalidation on mutations.
+- **Redis Caching** — Caches frequently accessed data (60s TTL) with automatic invalidation:
+  - All users list
+  - Board tasks by boardId
+  - Filtered task queries (any combination of filters)
+  - Task comments by taskId
 - **Optimized Database** — Strategic indexes on frequently queried fields:
   - Single-field indexes: email, ownerId, boardId, taskId, assigneeId
   - Compound indexes: {boardId, status}, {assigneeId, status}
 - **TypeScript Enums** — TaskStatus enum for type safety.
 - **Centralized Constants** — Model names centralized in constants for consistency.
-- **Modular Test Suite** — 44 tests split across 6 module-specific e2e test files.
+- **Modular Test Suite** — 56 tests split across 6 module-specific e2e test files.
 
 ## 🚀 Prerequisites
 
@@ -183,13 +189,14 @@ Content-Type: application/json
 
 {
   "name": "My Project",
-  "ownerId": "64a1b2c3d4e5f6g7h8i9j0k1"
+  "ownerId": "64a1b2c3d4e5f6g7h8i9j0k1",
+  "memberIds": ["64a1b2c3d4e5f6g7h8i9j0k2", "64a1b2c3d4e5f6g7h8i9j0k3"]
 }
 
 # List all boards
 GET /boards
 
-# Get boards by user (owner)
+# Get boards by user (owner or member)
 GET /boards/user/:userId
 
 # Get board by ID
@@ -205,6 +212,14 @@ Content-Type: application/json
 
 # Delete board (fails if tasks exist)
 DELETE /boards/:boardId
+
+# Update board members (owner only)
+PATCH /boards/:boardId/members
+Content-Type: application/json
+
+{
+  "memberIds": ["64a1b2c3d4e5f6g7h8i9j0k2", "64a1b2c3d4e5f6g7h8i9j0k3"]
+}
 ```
 
 ### Tasks
@@ -326,6 +341,7 @@ GET /history/user/:userId
   "_id": "ObjectId",
   "name": "string",
   "ownerId": "ObjectId (ref: User)",
+  "memberIds": "ObjectId[] (ref: User, optional)",
   "createdAt": "Date",
   "updatedAt": "Date"
 }
@@ -395,7 +411,12 @@ GET /history/user/:userId
 
 ## ⚡ Caching Strategy
 
+- **All Users**: Cached at `users:all` (60s TTL)
+  - Invalidated on user create/update/delete
 - **Board Tasks**: Cached at `board:{boardId}:tasks` (60s TTL)
+  - Invalidated on task create/update/delete
+- **Filtered Tasks**: Cached at `tasks:filtered:{JSON-stringified-filters}` (60s TTL)
+  - Supports any combination of boardId, status, title, description, assigneeId
   - Invalidated on task create/update/delete
 - **Task Comments**: Cached at `task:{taskId}:comments` (60s TTL)
   - Invalidated on comment create/update/delete
@@ -419,10 +440,10 @@ npm test -- test/e2e/tasks.e2e-spec.ts
 npm run test:cov
 ```
 
-**Test Coverage (44 tests across 6 modules):**
+**Test Coverage (56 tests across 6 modules):**
 - ✅ **users.e2e-spec.ts** - User CRUD operations (6 tests)
-- ✅ **boards.e2e-spec.ts** - Board CRUD + user boards API (8 tests)
-- ✅ **tasks.e2e-spec.ts** - Task CRUD, filtering, caching (14 tests)
+- ✅ **boards.e2e-spec.ts** - Board CRUD + members management (16 tests)
+- ✅ **tasks.e2e-spec.ts** - Task CRUD, filtering, caching (16 tests)
 - ✅ **comments.e2e-spec.ts** - Comment CRUD and caching (5 tests)
 - ✅ **history.e2e-spec.ts** - History logging + API (8 tests)
 - ✅ **validations.e2e-spec.ts** - Data integrity + workflow (4 tests)

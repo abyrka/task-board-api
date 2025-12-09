@@ -29,7 +29,10 @@ export class TasksService {
 
     const created = new this.taskModel(createTaskDto);
     const saved = await created.save();
-    await this.cacheService.del(`board:${createTaskDto.boardId}:tasks`);
+    await this.cacheService.del(
+      `board:${createTaskDto.boardId}:tasks`,
+      'tasks:filtered:*',
+    );
     return saved;
   }
 
@@ -44,6 +47,10 @@ export class TasksService {
     description?: string;
     assigneeId?: string;
   }) {
+    const cacheKey = `tasks:filtered:${JSON.stringify(filters)}`;
+    const cached = await this.cacheService.get<any[]>(cacheKey);
+    if (cached) return cached;
+
     const query: any = {};
     if (filters.boardId) query.boardId = filters.boardId;
     if (filters.status) query.status = filters.status;
@@ -51,16 +58,9 @@ export class TasksService {
     if (filters.description)
       query.description = { $regex: filters.description, $options: 'i' };
     if (filters.assigneeId) query.assigneeId = filters.assigneeId;
-    return this.taskModel.find(query).exec();
-  }
 
-  async findByBoard(boardId: string) {
-    const key = `board:${boardId}:tasks`;
-    const cached = await this.cacheService.get<any[]>(key);
-    if (cached) return cached;
-
-    const tasks = await this.taskModel.find({ boardId }).lean().exec();
-    await this.cacheService.set(key, tasks, 60);
+    const tasks = await this.taskModel.find(query).exec();
+    await this.cacheService.set(cacheKey, tasks);
     return tasks;
   }
 
@@ -119,6 +119,7 @@ export class TasksService {
     const keysToInvalidate = [
       `board:${oldBoardId}:tasks`,
       `task:${id}:comments`,
+      'tasks:filtered:*', // Invalidate all filtered task caches
     ];
     if (newBoardId !== oldBoardId) {
       keysToInvalidate.push(`board:${newBoardId}:tasks`);
@@ -136,6 +137,7 @@ export class TasksService {
     await this.cacheService.del(
       `board:${boardId}:tasks`,
       `task:${id}:comments`,
+      'tasks:filtered:*',
     );
     return removed;
   }

@@ -136,4 +136,189 @@ describe('Boards (e2e)', () => {
         .expect(404);
     });
   });
+
+  describe('Board Members Management', () => {
+    let ownerId: string;
+    let member1Id: string;
+    let member2Id: string;
+    let member3Id: string;
+
+    beforeAll(async () => {
+      const owner = await request(app.getHttpServer())
+        .post('/users')
+        .send({ name: 'Owner', email: `owner-${Date.now()}@test.com` })
+        .expect(201);
+      ownerId = owner.body._id;
+
+      const member1 = await request(app.getHttpServer())
+        .post('/users')
+        .send({ name: 'Member 1', email: `member1-${Date.now()}@test.com` })
+        .expect(201);
+      member1Id = member1.body._id;
+
+      const member2 = await request(app.getHttpServer())
+        .post('/users')
+        .send({ name: 'Member 2', email: `member2-${Date.now()}@test.com` })
+        .expect(201);
+      member2Id = member2.body._id;
+
+      const member3 = await request(app.getHttpServer())
+        .post('/users')
+        .send({ name: 'Member 3', email: `member3-${Date.now()}@test.com` })
+        .expect(201);
+      member3Id = member3.body._id;
+    });
+
+    it('should create board with members', async () => {
+      const res = await request(app.getHttpServer())
+        .post('/boards')
+        .send({
+          name: 'Team Board',
+          ownerId,
+          memberIds: [member1Id, member2Id],
+        })
+        .expect(201);
+
+      expect(res.body.memberIds).toEqual([member1Id, member2Id]);
+    });
+
+    it('should fail to create board with non-existent member', async () => {
+      await request(app.getHttpServer())
+        .post('/boards')
+        .send({
+          name: 'Invalid Board',
+          ownerId,
+          memberIds: ['507f1f77bcf86cd799439011'],
+        })
+        .expect(404);
+    });
+
+    it('should update board members', async () => {
+      const board = await request(app.getHttpServer())
+        .post('/boards')
+        .send({ name: 'Board to Update', ownerId })
+        .expect(201);
+
+      const updateRes = await request(app.getHttpServer())
+        .patch(`/boards/${board.body._id}/members`)
+        .send({ memberIds: [member1Id, member2Id, member3Id] })
+        .expect(200);
+
+      expect(updateRes.body.memberIds).toEqual([
+        member1Id,
+        member2Id,
+        member3Id,
+      ]);
+    });
+
+    it('should replace members when updating', async () => {
+      const board = await request(app.getHttpServer())
+        .post('/boards')
+        .send({
+          name: 'Board with Initial Members',
+          ownerId,
+          memberIds: [member1Id, member2Id],
+        })
+        .expect(201);
+
+      const updateRes = await request(app.getHttpServer())
+        .patch(`/boards/${board.body._id}/members`)
+        .send({ memberIds: [member3Id] })
+        .expect(200);
+
+      expect(updateRes.body.memberIds).toEqual([member3Id]);
+    });
+
+    it('should clear members with empty array', async () => {
+      const board = await request(app.getHttpServer())
+        .post('/boards')
+        .send({
+          name: 'Board to Clear',
+          ownerId,
+          memberIds: [member1Id, member2Id],
+        })
+        .expect(201);
+
+      const updateRes = await request(app.getHttpServer())
+        .patch(`/boards/${board.body._id}/members`)
+        .send({ memberIds: [] })
+        .expect(200);
+
+      expect(updateRes.body.memberIds).toEqual([]);
+    });
+
+    it('should fail to update members with non-existent member', async () => {
+      const board = await request(app.getHttpServer())
+        .post('/boards')
+        .send({ name: 'Board', ownerId })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .patch(`/boards/${board.body._id}/members`)
+        .send({ memberIds: ['507f1f77bcf86cd799439011'] })
+        .expect(404);
+    });
+
+    it('should get boards where user is a member', async () => {
+      const board1 = await request(app.getHttpServer())
+        .post('/boards')
+        .send({
+          name: 'Board 1',
+          ownerId,
+          memberIds: [member1Id],
+        })
+        .expect(201);
+
+      const board2 = await request(app.getHttpServer())
+        .post('/boards')
+        .send({
+          name: 'Board 2',
+          ownerId,
+          memberIds: [member1Id, member2Id],
+        })
+        .expect(201);
+
+      await request(app.getHttpServer())
+        .post('/boards')
+        .send({
+          name: 'Board 3',
+          ownerId,
+          memberIds: [member2Id],
+        })
+        .expect(201);
+
+      const member1Boards = await request(app.getHttpServer())
+        .get(`/boards/user/${member1Id}`)
+        .expect(200);
+
+      expect(member1Boards.body.length).toBeGreaterThanOrEqual(2);
+      const boardIds = member1Boards.body.map((b) => b._id);
+      expect(boardIds).toContain(board1.body._id);
+      expect(boardIds).toContain(board2.body._id);
+    });
+
+    it('should get boards where user is owner or member', async () => {
+      const ownedBoard = await request(app.getHttpServer())
+        .post('/boards')
+        .send({ name: 'Owned Board', ownerId: member1Id })
+        .expect(201);
+
+      const memberBoard = await request(app.getHttpServer())
+        .post('/boards')
+        .send({
+          name: 'Member Board',
+          ownerId,
+          memberIds: [member1Id],
+        })
+        .expect(201);
+
+      const userBoards = await request(app.getHttpServer())
+        .get(`/boards/user/${member1Id}`)
+        .expect(200);
+
+      const boardIds = userBoards.body.map((b) => b._id);
+      expect(boardIds).toContain(ownedBoard.body._id);
+      expect(boardIds).toContain(memberBoard.body._id);
+    });
+  });
 });
